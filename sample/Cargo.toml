@@ -1,0 +1,10 @@
+[package]
+name = "sample"
+version = "0.1.0"
+edition = "2024"
+authors = ["ziprangga"]
+license = "MIT or Apache-2.0"
+
+
+[dependencies]
+simple-debug = {workspace = true}
