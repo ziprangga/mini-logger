@@ -7,6 +7,6 @@ license = "MIT or Apache-2.0"
 
 
 [dependencies]
-simple-debug = {workspace = true}
+simple-debug = {path = "../"}
 log = "0.4"
 env_logger = "0.11"

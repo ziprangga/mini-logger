@@ -6,20 +6,18 @@ authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
 
 [features]
-default = []
-log-env-support = ["log", "env_logger"]
+default = ["console"]
+console = []
+buffer = []
+
+
 
 [dependencies]
-log = {version = "0.4", optional = true}
-env_logger = { version = "0.11", optional = true }
 chrono = "0.4.44"
+tokio = { version = "1.50", features = ["full"] }
 
 [workspace]
 members = [
     ".",
     "sample"
 ]
-
-[workspace.dependencies]
-simple-debug = {path = "."}
-# simple-debug = {path = ".", features = ["log-env-support"]}

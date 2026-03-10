@@ -2,14 +2,13 @@ mod debug;
 mod ext_debug;
 
 fn main() {
+    let debug_log = simple_debug::DebugLog::init(None);
     ext_debug::init_ext_debug();
-
-    run_test();
+    // simple_debug::Level::set_level(simple_debug::Level::Info);
 
     debug::run_debug();
-}
+    ext_debug::run_ext_debug();
 
-fn run_test() {
-    log::debug!("Halo from log::debug!");
-    ext_debug_log!("Halo from ext_debug macro");
+    let content = debug_log.get_debug_buffer();
+    println!("Buffer content:\n{}, \nBatas", content);
 }

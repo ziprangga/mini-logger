@@ -7,10 +7,17 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 
-#[cfg(feature = "log-env-support")]
-pub use env_logger;
-#[cfg(feature = "log-env-support")]
-pub use log;
+#[cfg(feature = "buffer")]
+const USE_BUFFER: bool = true;
+
+#[cfg(not(feature = "buffer"))]
+const USE_BUFFER: bool = false;
+
+#[cfg(feature = "console")]
+const USE_CONSOLE: bool = true;
+
+#[cfg(not(feature = "console"))]
+const USE_CONSOLE: bool = false;
 
 pub static DEBUG_CONTEXT: LazyLock<Mutex<Option<Arc<DebugLogInner>>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -19,7 +26,7 @@ pub static CRATE_LEVELS: LazyLock<RwLock<HashMap<String, Level>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[repr(usize)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum Level {
     Off = 0,
     Error = 1,
@@ -35,8 +42,7 @@ impl Level {
     }
 
     #[inline(always)]
-    pub fn enabled(self) -> bool {
-        let module_path = module_path!();
+    pub fn enabled(self, module_path: &str) -> bool {
         let map = CRATE_LEVELS.read().unwrap();
         let mut matched_level: Option<(&str, Level)> = None;
         for (prefix, &level) in map.iter() {
@@ -90,20 +96,26 @@ pub struct DebugLogInner {
 }
 
 impl DebugLogInner {
-    pub fn push_log(&self, args: std::fmt::Arguments) {
+    pub fn push_log(&self, module: &str, level: Level, args: std::fmt::Arguments) {
+        if !level.enabled(module) {
+            return;
+        }
+
         if let Some(out) = &self.console {
             let mut lock = out.lock().unwrap();
-            let _ = writeln!(lock, "{}", args);
+            let msg = format_log(module, level, args.clone(), true);
+            let _ = writeln!(lock, "{}", msg);
         }
 
         if let Some(buf) = &self.buffer {
             let mut buf = buf.lock().unwrap();
             use std::fmt::Write;
-            let _ = write!(BufWriter::writer(&mut *buf), "{}\n", args);
+            let msg = format_log(module, level, args, false);
+            let _ = write!(BufWriter::writer(&mut *buf), "{}\n", msg);
         }
     }
 
-    pub fn get_buffer(&self) -> Option<String> {
+    pub fn get_from_buffer(&self) -> Option<String> {
         self.buffer.as_ref().map(|buf| {
             let buf = buf.lock().unwrap();
             String::from_utf8_lossy(&buf).to_string()
@@ -125,7 +137,9 @@ pub struct DebugLog {
 }
 
 impl DebugLog {
-    pub fn init(config: Option<&[(&str, Level)]>, use_buffer: bool, use_console: bool) -> Self {
+    pub fn init(config: Option<&[(&str, Level)]>) -> Self {
+        let use_buffer = USE_BUFFER;
+        let use_console = USE_CONSOLE;
         let inner = Arc::new(DebugLogInner {
             buffer: if use_buffer {
                 Some(Arc::new(Mutex::new(Vec::new())))
@@ -156,25 +170,14 @@ impl DebugLog {
             }
         } else {
             Self::init_from_env();
-        }
-
-        #[cfg(feature = "log-env-support")]
-        {
-            // Convert internal CRATE_LEVELS to &[(&str, Level)] for env_logger
-            if use_buffer || use_console {
-                let map = CRATE_LEVELS.read().unwrap();
-                let config_for_env: Vec<(&str, Level)> =
-                    map.iter().map(|(k, &v)| (k.as_str(), v)).collect();
-                // If either buffer or console is enabled, forward to EnvForwarder
-                Self::use_env_logger_init(&inner, &config_for_env);
-            }
+            println!("CRATE_LEVELS = {:?}", CRATE_LEVELS.read().unwrap());
         }
 
         DebugLog { inner }
     }
 
     pub fn get_debug_buffer(&self) -> String {
-        self.inner.get_buffer().unwrap_or_default()
+        self.inner.get_from_buffer().unwrap_or_default()
     }
 
     pub fn save_debug_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
@@ -200,50 +203,6 @@ impl DebugLog {
             }
         }
     }
-
-    #[cfg(feature = "log-env-support")]
-    fn use_env_logger_init(inner: &Arc<DebugLogInner>, config: &[(&str, Level)]) {
-        use env_logger;
-        use log;
-        let mut builder = env_logger::Builder::new();
-        builder.filter(None, log::LevelFilter::Off);
-        for &(crate_name, level) in config {
-            let parsed_level = match level {
-                Level::Trace => log::LevelFilter::Trace,
-                Level::Debug => log::LevelFilter::Debug,
-                Level::Info => log::LevelFilter::Info,
-                Level::Warn => log::LevelFilter::Warn,
-                Level::Error => log::LevelFilter::Error,
-                Level::Off => log::LevelFilter::Off,
-            };
-
-            builder.filter(Some(crate_name), parsed_level);
-        }
-
-        builder.target(env_logger::Target::Pipe(Box::new(EnvForwarder {
-            inner: inner.clone(),
-        })));
-
-        let _ = builder.try_init();
-    }
-}
-
-#[cfg(feature = "log-env-support")]
-struct EnvForwarder {
-    inner: Arc<DebugLogInner>,
-}
-
-#[cfg(feature = "log-env-support")]
-impl std::io::Write for EnvForwarder {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let s = String::from_utf8_lossy(buf);
-        self.inner.push_log(format_args!("{}", s));
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
 // -------------------------------
@@ -252,35 +211,21 @@ impl std::io::Write for EnvForwarder {
 
 #[doc(hidden)]
 pub fn write_log(module: &str, level: Level, args: std::fmt::Arguments) {
-    if level.enabled() {
+    if level.enabled(module) {
         let maybe_inner = DEBUG_CONTEXT.lock().unwrap().as_ref().cloned();
         if let Some(inner) = maybe_inner {
-            let msg = format_log(module, level, args);
-            let msg_arg = format_args!("{}", msg);
-            inner.push_log(msg_arg);
+            inner.push_log(module, level, args);
         } else {
-            #[cfg(feature = "log-env-support")]
-            {
-                // fallback: just print to stdout
-                let msg = format_log(module, level, args);
-                let msg_arg = format_args!("{}", msg);
-                println!("{}", msg_arg);
-            }
-
-            #[cfg(not(feature = "log-env-support"))]
-            {
-                // original behavior: panic
-                panic!("DEBUG_CONTEXT not initialized");
-            }
+            println!("DEBUG_CONTEXT not initialized");
         }
     }
 }
 
-fn format_log(module: &str, level: Level, args: std::fmt::Arguments) -> String {
+fn format_log(module: &str, level: Level, args: std::fmt::Arguments, use_color: bool) -> String {
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    let color_level = color_for_level(level);
-    let module_color = color_for_module(module);
-    let reset = "\x1b[0m";
+    let color_level = color_for_level(level, use_color);
+    let module_color = color_for_module(module, use_color);
+    let reset = if use_color { "\x1b[0m" } else { "" };
     format!(
         "[{} {}{}{} {}{}{}] {}",
         ts,
@@ -305,7 +250,10 @@ fn level_as_str(level: Level) -> &'static str {
     }
 }
 
-fn color_for_level(level: Level) -> &'static str {
+fn color_for_level(level: Level, use_color: bool) -> &'static str {
+    if !use_color {
+        return "";
+    }
     match level {
         Level::Error => "\x1b[31m", // Red
         Level::Warn => "\x1b[33m",  // Yellow
@@ -316,8 +264,10 @@ fn color_for_level(level: Level) -> &'static str {
     }
 }
 
-fn color_for_module(module: &str) -> &'static str {
-    // Example: simple hash to pick a color
+fn color_for_module(module: &str, use_color: bool) -> &'static str {
+    if !use_color {
+        return "";
+    }
     match module.chars().next().unwrap_or('a') {
         'a'..='f' => "\x1b[36m", // Cyan
         'g'..='l' => "\x1b[35m", // Magenta

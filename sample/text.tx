@@ -1,0 +1,67 @@
+RingBuffer
+Subtle: AtomicUsize::fetch_add with modulo means overwriting older logs is fine, but no protection against simultaneous writers producing interleaved output. Probably acceptable for debug logs.
+
+
+
+
+Notes / potential improvements
+-Box::leak(crate_name.to_string().into_boxed_str()) in init_from_env()
+This is fine for global static usage but leaks memory. For a debug logger that lives for the lifetime of the program, it’s acceptable.
+
+RingBuffer interleaving
+Already noted: concurrent pushes can interleave bytes. Acceptable for debug logs.
+
+use_config_init()
+Currently takes Option<&[(&str, Level)]>; works fine.
+Make sure this is only used when log-env-support feature is enabled.
+
+Fallback in write_log
+You fallback to stdout when DEBUG_CONTEXT isn’t initialized, which is good.
+
+Macros
+Clean and simple, no hidden closure calls.
+Supports format arguments like println!.
+
+Thread safety
+DEBUG_CONTEXT is safe once set.
+RingBuffer is safe but may produce interleaved log lines in multi-threaded writes.
+
+
+My goal, broken down precisely:
+1. My macros (debug_dev!, info_dev!, etc.) are the only macros my crate provides.
+- They must never internally call log macros from the log crate.
+- They should write only to my internal system (buffer, console, etc.) directly.
+
+2. my crate can still accept and handle log messages from other crates that use the log crate (and potentially env_logger) in downstream dependencies.
+- This means if another crate calls log::debug!() or log::info!(), my crate should receive those messages and write them into my internal logging system (buffer/console).
+
+================================================
+3. Optional: my crate can forward my own logs (from my macros) to the log crate or env_logger so that downstream logging systems can see them.
+- But this forwarding is optional — it is not required for my macros themselves.
+
+no.3 still need to refine because when init run without features enabled still send message to another features
+=================================================
+
+4. Thread safety and performance:
+- Internal buffer writes must be thread-safe.
+- Console writes may optionally avoid locks for performance, but buffer writes must remain safe.
+
+5. Integration with downstream code:
+- my crate is intended to be used in a library that other crates depend on.
+- Downstream crates may use the log ecosystem, and their logs should be captured by my system without changing their code.
+
+
+Console + buffer logging
+Right now, logs are only sent to BufferWriter via Target::Pipe.
+console_out is not actually writing to stdout. If you want logs to appear in the console as well, you need to either:
+Use Target::Stdout for console logging, or
+Implement a combined writer that writes to both stdout and buffer.
+STDOUT_CAPTURE toggle
+Starts as false. Until stdout_capture(true) is called, logs are not stored in CONTEXT_BUFFER.
+VecDeque capacity
+LazyLock::new(|| Arc::new(Mutex::new(VecDeque::with_capacity(1000)))) sets the initial capacity, but the deque can still grow beyond 1000 unless capture_log enforces MAX_LOG_LINES. You do enforce it, so this is fine.
+Async file writing
+save_buffer_to_file_async() writes lines sequentially with .await for each line.
+For large buffers, this could be slower than batching. Consider using join_all or writing a single concatenated string asynchronously.
+BufferWriter::write
+Clones the string: self.capture_log(s.clone());. The clone is unnecessary; you can pass s directly.
