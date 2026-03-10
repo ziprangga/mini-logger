@@ -1,5 +1,4 @@
-use arrayvec;
-use once_cell::sync::OnceCell;
+use chrono;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
@@ -13,7 +12,8 @@ pub use env_logger;
 #[cfg(feature = "log-env-support")]
 pub use log;
 
-pub static DEBUG_CONTEXT: OnceCell<Arc<DebugLogInner>> = OnceCell::new();
+pub static DEBUG_CONTEXT: LazyLock<Mutex<Option<Arc<DebugLogInner>>>> =
+    LazyLock::new(|| Mutex::new(None));
 pub static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
 pub static CRATE_LEVELS: LazyLock<RwLock<HashMap<String, Level>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
@@ -68,98 +68,86 @@ impl Level {
     }
 }
 
-pub struct RingBuffer {
-    buf: Box<[u8]>,
-    write: AtomicUsize,
-}
+struct BufWriter<'a>(&'a mut Vec<u8>);
 
-impl RingBuffer {
-    pub fn new(size: usize) -> Self {
-        Self {
-            buf: vec![0u8; size].into_boxed_slice(),
-            write: AtomicUsize::new(0),
-        }
-    }
-
-    pub fn push(&self, bytes: &[u8]) {
-        let start = self.write.fetch_add(bytes.len(), Ordering::Relaxed);
-        let len = self.buf.len();
-
-        for (i, b) in bytes.iter().enumerate() {
-            let idx = (start + i) % len;
-            unsafe {
-                let ptr = self.buf.as_ptr().add(idx) as *mut u8;
-                *ptr = *b;
-            }
-        }
-    }
-
-    pub fn snapshot(&self) -> Vec<u8> {
-        self.buf.to_vec()
+impl<'a> BufWriter<'a> {
+    pub fn writer(buf: &'a mut Vec<u8>) -> Self {
+        BufWriter(buf)
     }
 }
 
+impl<'a> std::fmt::Write for BufWriter<'a> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.0.extend_from_slice(s.as_bytes());
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
 pub struct DebugLogInner {
-    buffer: Option<RingBuffer>,
-    console: Option<io::Stdout>,
+    buffer: Option<Arc<Mutex<Vec<u8>>>>,
+    console: Option<Arc<Mutex<io::Stdout>>>,
 }
 
 impl DebugLogInner {
-    pub fn write_fmt(&self, args: std::fmt::Arguments) {
+    pub fn push_log(&self, args: std::fmt::Arguments) {
         if let Some(out) = &self.console {
-            let mut lock = out.lock();
-            let _ = lock.write_fmt(args);
-            let _ = lock.write_all(b"\n");
+            let mut lock = out.lock().unwrap();
+            let _ = writeln!(lock, "{}", args);
         }
 
         if let Some(buf) = &self.buffer {
+            let mut buf = buf.lock().unwrap();
             use std::fmt::Write;
-            let mut tmp = arrayvec::ArrayString::<512>::new();
-            let _ = write!(tmp, "{}\n", args);
-            buf.push(tmp.as_bytes());
+            let _ = write!(BufWriter::writer(&mut *buf), "{}\n", args);
         }
     }
 
     pub fn get_buffer(&self) -> Option<String> {
-        self.buffer
-            .as_ref()
-            .map(|b| String::from_utf8_lossy(&b.snapshot()).to_string())
+        self.buffer.as_ref().map(|buf| {
+            let buf = buf.lock().unwrap();
+            String::from_utf8_lossy(&buf).to_string()
+        })
     }
 
     pub fn save_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         if let Some(buf) = &self.buffer {
+            let buf = buf.lock().unwrap();
             let mut file = File::create(path)?;
-            file.write_all(&buf.snapshot())?;
+            file.write_all(&buf)?;
         }
         Ok(())
     }
 }
 
 pub struct DebugLog {
-    debug_log_inner: OnceCell<Arc<DebugLogInner>>,
+    pub inner: Arc<DebugLogInner>,
 }
 
 impl DebugLog {
     pub fn init(config: Option<&[(&str, Level)]>, use_buffer: bool, use_console: bool) -> Self {
         let inner = Arc::new(DebugLogInner {
             buffer: if use_buffer {
-                Some(RingBuffer::new(1024 * 1024))
+                Some(Arc::new(Mutex::new(Vec::new())))
             } else {
                 None
             },
             console: if use_console {
-                Some(io::stdout())
+                Some(Arc::new(Mutex::new(io::stdout())))
             } else {
                 None
             },
         });
 
-        let debug_log = DebugLog {
-            debug_log_inner: OnceCell::new(),
-        };
-        let _ = debug_log.debug_log_inner.set(inner.clone());
+        let mut guard = DEBUG_CONTEXT.lock().unwrap();
+        *guard = Some(inner.clone());
 
-        let _ = DEBUG_CONTEXT.set(inner);
+        if use_buffer && guard.as_ref().unwrap().buffer.is_none() {
+            panic!("DEBUG_CONTEXT compiled without buffer support");
+        }
+        if use_console && guard.as_ref().unwrap().console.is_none() {
+            panic!("DEBUG_CONTEXT compiled without console support");
+        }
 
         if let Some(cfg) = config {
             let mut map = CRATE_LEVELS.write().unwrap();
@@ -173,38 +161,24 @@ impl DebugLog {
         #[cfg(feature = "log-env-support")]
         {
             // Convert internal CRATE_LEVELS to &[(&str, Level)] for env_logger
-            let map = CRATE_LEVELS.read().unwrap();
-            let config_for_env: Vec<(&str, Level)> =
-                map.iter().map(|(k, &v)| (k.as_str(), v)).collect();
-
-            // Disable others only if user passed explicit config
-            Self::use_config_init(&config_for_env);
+            if use_buffer || use_console {
+                let map = CRATE_LEVELS.read().unwrap();
+                let config_for_env: Vec<(&str, Level)> =
+                    map.iter().map(|(k, &v)| (k.as_str(), v)).collect();
+                // If either buffer or console is enabled, forward to EnvForwarder
+                Self::use_env_logger_init(&inner, &config_for_env);
+            }
         }
 
-        debug_log
+        DebugLog { inner }
     }
 
-    #[doc(hidden)]
-    pub fn write_log(level: Level, args: std::fmt::Arguments) {
-        if level.enabled() {
-            let inner = DEBUG_CONTEXT
-                .get()
-                .expect("DEBUG_CONTEXT not initialized, need init function");
-            inner.write_fmt(args);
-        }
+    pub fn get_debug_buffer(&self) -> String {
+        self.inner.get_buffer().unwrap_or_default()
     }
 
-    #[doc(hidden)]
-    pub fn forward_to_log(_level: Level, _args: std::fmt::Arguments) {
-        #[cfg(feature = "log-env-support")]
-        match _level {
-            Level::Error => log::error!("{}", _args),
-            Level::Warn => log::warn!("{}", _args),
-            Level::Info => log::info!("{}", _args),
-            Level::Debug => log::debug!("{}", _args),
-            Level::Trace => log::trace!("{}", _args),
-            Level::Off => {}
-        }
+    pub fn save_debug_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+        self.inner.save_buffer_to_file(path)
     }
 
     fn init_from_env() {
@@ -228,7 +202,9 @@ impl DebugLog {
     }
 
     #[cfg(feature = "log-env-support")]
-    fn use_config_init(config: &[(&str, Level)]) {
+    fn use_env_logger_init(inner: &Arc<DebugLogInner>, config: &[(&str, Level)]) {
+        use env_logger;
+        use log;
         let mut builder = env_logger::Builder::new();
         builder.filter(None, log::LevelFilter::Off);
         for &(crate_name, level) in config {
@@ -244,68 +220,148 @@ impl DebugLog {
             builder.filter(Some(crate_name), parsed_level);
         }
 
-        builder.format(|buf, record| {
-            use std::io::Write;
-            writeln!(
-                buf,
-                "[ENV_LOGGER {} {}] {}",
-                record.level(),
-                record.module_path().unwrap_or("<unknown>"),
-                record.args()
-            )
-        });
+        builder.target(env_logger::Target::Pipe(Box::new(EnvForwarder {
+            inner: inner.clone(),
+        })));
 
         let _ = builder.try_init();
     }
 }
 
+#[cfg(feature = "log-env-support")]
+struct EnvForwarder {
+    inner: Arc<DebugLogInner>,
+}
+
+#[cfg(feature = "log-env-support")]
+impl std::io::Write for EnvForwarder {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let s = String::from_utf8_lossy(buf);
+        self.inner.push_log(format_args!("{}", s));
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 // -------------------------------
-// Debug macro
-// Wrapper macro from crate log
-// use it for print message to console or manipulate it
-// for your need in the function you build
-// debug_dev!("Starting main app in debug mode...");
-// can be combined with another value or message
-// let msg = some_value;
-// debug-dev!("message {}", msg.to_string());
-// just like "println!"
+// Helper
 // -------------------------------
+
+#[doc(hidden)]
+pub fn write_log(module: &str, level: Level, args: std::fmt::Arguments) {
+    if level.enabled() {
+        let maybe_inner = DEBUG_CONTEXT.lock().unwrap().as_ref().cloned();
+        if let Some(inner) = maybe_inner {
+            let msg = format_log(module, level, args);
+            let msg_arg = format_args!("{}", msg);
+            inner.push_log(msg_arg);
+        } else {
+            #[cfg(feature = "log-env-support")]
+            {
+                // fallback: just print to stdout
+                let msg = format_log(module, level, args);
+                let msg_arg = format_args!("{}", msg);
+                println!("{}", msg_arg);
+            }
+
+            #[cfg(not(feature = "log-env-support"))]
+            {
+                // original behavior: panic
+                panic!("DEBUG_CONTEXT not initialized");
+            }
+        }
+    }
+}
+
+fn format_log(module: &str, level: Level, args: std::fmt::Arguments) -> String {
+    let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let color_level = color_for_level(level);
+    let module_color = color_for_module(module);
+    let reset = "\x1b[0m";
+    format!(
+        "[{} {}{}{} {}{}{}] {}",
+        ts,
+        color_level,
+        level_as_str(level),
+        reset,
+        module_color,
+        module,
+        reset,
+        args
+    )
+}
+
+fn level_as_str(level: Level) -> &'static str {
+    match level {
+        Level::Error => "ERROR",
+        Level::Warn => "WARN",
+        Level::Info => "INFO",
+        Level::Debug => "DEBUG",
+        Level::Trace => "TRACE",
+        Level::Off => "OFF",
+    }
+}
+
+fn color_for_level(level: Level) -> &'static str {
+    match level {
+        Level::Error => "\x1b[31m", // Red
+        Level::Warn => "\x1b[33m",  // Yellow
+        Level::Info => "\x1b[32m",  // Green
+        Level::Debug => "\x1b[34m", // Blue
+        Level::Trace => "\x1b[35m", // Magenta
+        Level::Off => "\x1b[0m",    // Reset
+    }
+}
+
+fn color_for_module(module: &str) -> &'static str {
+    // Example: simple hash to pick a color
+    match module.chars().next().unwrap_or('a') {
+        'a'..='f' => "\x1b[36m", // Cyan
+        'g'..='l' => "\x1b[35m", // Magenta
+        'm'..='r' => "\x1b[32m", // Green
+        's'..='z' => "\x1b[33m", // Yellow
+        _ => "\x1b[37m",         // White fallback
+    }
+}
+
+// -------------------------------
+// Macro
+// -------------------------------
+
 #[macro_export]
 macro_rules! error_dev {
     ($($arg:tt)*) => {{
-        DebugLog::write_log($crate::Level::Error, format_args!($($arg)*));
-        DebugLog::forward_to_log($crate::Level::Error, format_args!($($arg)*));
+        $crate::write_log(module_path!(), $crate::Level::Error, format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
 macro_rules! warn_dev {
     ($($arg:tt)*) => {{
-        DebugLog::write_log($crate::Level::Warn, format_args!($($arg)*));
-        DebugLog::forward_to_log($crate::Level::Warn, format_args!($($arg)*));
+        $crate::write_log(module_path!(), $crate::Level::Warn, format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
 macro_rules! info_dev {
     ($($arg:tt)*) => {{
-        DebugLog::write_log($crate::Level::Info, format_args!($($arg)*));
-        DebugLog::forward_to_log($crate::Level::Info, format_args!($($arg)*));
+        $crate::write_log(module_path!(), $crate::Level::Info, format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
 macro_rules! debug_dev {
     ($($arg:tt)*) => {{
-        DebugLog::write_log($crate::Level::Debug, format_args!($($arg)*));
-        DebugLog::forward_to_log($crate::Level::Debug, format_args!($($arg)*));
+        $crate::write_log(module_path!(), $crate::Level::Debug, format_args!($($arg)*));
     }};
 }
 
 #[macro_export]
 macro_rules! trace_dev {
     ($($arg:tt)*) => {{
-        DebugLog::write_log($crate::Level::Trace, format_args!($($arg)*));
-        DebugLog::forward_to_log($crate::Level::Trace, format_args!($($arg)*));
+        $crate::write_log(module_path!(), $crate::Level::Trace, format_args!($($arg)*));
     }};
 }

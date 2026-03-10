@@ -6,14 +6,13 @@ authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
 
 [features]
-default = ["log-env-support"]
+default = []
 log-env-support = ["log", "env_logger"]
 
 [dependencies]
 log = {version = "0.4", optional = true}
 env_logger = { version = "0.11", optional = true }
-once_cell = "1.21.3"
-arrayvec = "0.7.6"
+chrono = "0.4.44"
 
 [workspace]
 members = [
@@ -23,3 +22,4 @@ members = [
 
 [workspace.dependencies]
 simple-debug = {path = "."}
+# simple-debug = {path = ".", features = ["log-env-support"]}

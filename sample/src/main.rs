@@ -1,7 +1,15 @@
-use simple_debug::{DebugLog, debug_dev, info_dev};
-fn main() {
-    DebugLog::init(None, false, true);
+mod debug;
+mod ext_debug;
 
-    debug_dev!("Hello from debug_dev!");
-    info_dev!("Hello from info_dev!");
+fn main() {
+    ext_debug::init_ext_debug();
+
+    run_test();
+
+    debug::run_debug();
+}
+
+fn run_test() {
+    log::debug!("Halo from log::debug!");
+    ext_debug_log!("Halo from ext_debug macro");
 }
