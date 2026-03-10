@@ -19,10 +19,10 @@ const USE_CONSOLE: bool = true;
 #[cfg(not(feature = "console"))]
 const USE_CONSOLE: bool = false;
 
-pub static DEBUG_CONTEXT: LazyLock<Mutex<Option<Arc<DebugLogInner>>>> =
+static DEBUG_CONTEXT: LazyLock<Mutex<Option<Arc<DebugLogInner>>>> =
     LazyLock::new(|| Mutex::new(None));
-pub static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
-pub static CRATE_LEVELS: LazyLock<RwLock<HashMap<String, Level>>> =
+static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
+static CRATE_LEVELS: LazyLock<RwLock<HashMap<String, Level>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[repr(usize)]
@@ -90,13 +90,13 @@ impl<'a> std::fmt::Write for BufWriter<'a> {
 }
 
 #[derive(Clone)]
-pub struct DebugLogInner {
+struct DebugLogInner {
     buffer: Option<Arc<Mutex<Vec<u8>>>>,
     console: Option<Arc<Mutex<io::Stdout>>>,
 }
 
 impl DebugLogInner {
-    pub fn push_log(&self, module: &str, level: Level, args: std::fmt::Arguments) {
+    fn push_log(&self, module: &str, level: Level, args: std::fmt::Arguments) {
         if !level.enabled(module) {
             return;
         }
@@ -115,14 +115,14 @@ impl DebugLogInner {
         }
     }
 
-    pub fn get_from_buffer(&self) -> Option<String> {
+    fn get_from_buffer(&self) -> Option<String> {
         self.buffer.as_ref().map(|buf| {
             let buf = buf.lock().unwrap();
             String::from_utf8_lossy(&buf).to_string()
         })
     }
 
-    pub fn save_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+    fn save_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         if let Some(buf) = &self.buffer {
             let buf = buf.lock().unwrap();
             let mut file = File::create(path)?;
@@ -133,7 +133,7 @@ impl DebugLogInner {
 }
 
 pub struct DebugLog {
-    pub inner: Arc<DebugLogInner>,
+    inner: Arc<DebugLogInner>,
 }
 
 impl DebugLog {
@@ -176,11 +176,11 @@ impl DebugLog {
         DebugLog { inner }
     }
 
-    pub fn get_debug_buffer(&self) -> String {
-        self.inner.get_from_buffer().unwrap_or_default()
+    pub fn get_log_from_buffer(&self) -> Option<String> {
+        self.inner.get_from_buffer()
     }
 
-    pub fn save_debug_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
+    pub fn save_log_buffer_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         self.inner.save_buffer_to_file(path)
     }
 
@@ -208,7 +208,37 @@ impl DebugLog {
 // -------------------------------
 // Helper
 // -------------------------------
+/// Get all logs from the global buffer as `Option<String>`.
+/// Returns `None` if the buffer is not enabled or not initialized.
+pub fn get_log_from_global_buffer() -> Option<String> {
+    DEBUG_CONTEXT
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|inner| inner.get_from_buffer())
+}
 
+/// Save the global buffer to a file.
+/// Returns `Ok(())` if successful, or if buffer is not initialized.
+/// Returns an `io::Error` if the file write fails.
+pub fn save_global_log_buffer_to_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    if let Some(inner) = DEBUG_CONTEXT.lock().unwrap().as_ref() {
+        inner.save_buffer_to_file(path)
+    } else {
+        Ok(())
+    }
+}
+
+/// Writes a log message using the global debug context.
+///
+/// If the specified log level is enabled for the given module, this function
+/// forwards the message to the shared `DEBUG_CONTEXT`. If the context is not
+/// initialized, it will print a warning to stdout.
+///
+/// # Parameters
+/// - `module`: The module path or name for which the log is being recorded.
+/// - `level`: The severity level of the log message.
+/// - `args`: The formatted arguments for the log message.
 #[doc(hidden)]
 pub fn write_log(module: &str, level: Level, args: std::fmt::Arguments) {
     if level.enabled(module) {
@@ -221,6 +251,17 @@ pub fn write_log(module: &str, level: Level, args: std::fmt::Arguments) {
     }
 }
 
+/// Formats a log message as a string with timestamp, level, module, and content.
+///
+/// The log is formatted as:
+/// `[timestamp LEVEL module] message`
+///
+/// - `module`: The name or path of the module emitting the log.
+/// - `level`: The severity level of the log.
+/// - `args`: The formatted log message arguments.
+/// - `use_color`: Whether to include ANSI color codes for terminal output.
+///
+/// Returns the fully formatted log string.
 fn format_log(module: &str, level: Level, args: std::fmt::Arguments, use_color: bool) -> String {
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let color_level = color_for_level(level, use_color);
@@ -239,6 +280,7 @@ fn format_log(module: &str, level: Level, args: std::fmt::Arguments, use_color: 
     )
 }
 
+/// Converts a `Level` enum to its string representation.
 fn level_as_str(level: Level) -> &'static str {
     match level {
         Level::Error => "ERROR",
@@ -250,6 +292,7 @@ fn level_as_str(level: Level) -> &'static str {
     }
 }
 
+/// Returns ANSI color code for a log level if `use_color` is true; otherwise returns an empty string.
 fn color_for_level(level: Level, use_color: bool) -> &'static str {
     if !use_color {
         return "";
@@ -264,6 +307,7 @@ fn color_for_level(level: Level, use_color: bool) -> &'static str {
     }
 }
 
+/// Returns ANSI color code for a module based on its first character if `use_color` is true; otherwise returns an empty string.
 fn color_for_module(module: &str, use_color: bool) -> &'static str {
     if !use_color {
         return "";
@@ -280,7 +324,6 @@ fn color_for_module(module: &str, use_color: bool) -> &'static str {
 // -------------------------------
 // Macro
 // -------------------------------
-
 #[macro_export]
 macro_rules! error_dev {
     ($($arg:tt)*) => {{

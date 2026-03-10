@@ -9,6 +9,7 @@ fn main() {
     debug::run_debug();
     ext_debug::run_ext_debug();
 
-    let content = debug_log.get_debug_buffer();
-    println!("Buffer content:\n{}, \nBatas", content);
+    if let Some(content) = debug_log.get_log_from_buffer() {
+        println!("Buffer content:\n{}, \nBatas", content);
+    };
 }
