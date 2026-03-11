@@ -170,7 +170,8 @@ impl DebugLog {
             }
         } else {
             Self::init_from_env();
-            println!("CRATE_LEVELS = {:?}", CRATE_LEVELS.read().unwrap());
+            // Check name of CRATE_LEVEL Value
+            // println!("CRATE_LEVELS = {:?}", CRATE_LEVELS.read().unwrap());
         }
 
         DebugLog { inner }

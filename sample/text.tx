@@ -65,3 +65,25 @@ save_buffer_to_file_async() writes lines sequentially with .await for each line.
 For large buffers, this could be slower than batching. Consider using join_all or writing a single concatenated string asynchronously.
 BufferWriter::write
 Clones the string: self.capture_log(s.clone());. The clone is unnecessary; you can pass s directly.
+
+
+It doesn’t support asynchronous logging out of the box.
+It doesn’t support rotating files or network sinks.
+It’s mostly single-process oriented.
+
+
+mini-logger — Lightweight, flexible Rust logging
+Description:
+mini-logger is a lightweight logging crate for Rust that provides multi-level, module-aware logging with minimal overhead. Designed primarily for developers, it is also suitable for small production setups.
+Key Features:
+Multi-level logging: Error, Warn, Info, Debug, Trace.
+Per-module log filtering: Control verbosity for specific crates or modules.
+Multiple output targets: Optional console output with ANSI colors and optional in-memory buffer.
+Buffer management: Retrieve logs from memory or save them to a file.
+Developer-friendly macros: error_dev!, warn_dev!, info_dev!, debug_dev!, trace_dev! automatically use the current module path.
+Configurable: Supports RUST_LOG environment variable or programmatic configuration.
+Lightweight and thread-safe: Uses Arc<Mutex> and LazyLock with minimal dependencies.
+Why use mini-logger?
+Ideal for debugging, testing, and development workflows.
+Robust enough to capture errors, warnings, and info in small to medium production apps.
+Easy to integrate and configure without introducing heavy logging frameworks.
