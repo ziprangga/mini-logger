@@ -7,6 +7,7 @@ license = "MIT or Apache-2.0"
 
 [features]
 default = ["console"]
+all = ["console", "buffer"]
 console = []
 buffer = []
 
@@ -19,3 +20,14 @@ members = [
     ".",
     "sample"
 ]
+
+
+[[test]]
+name = "simple_debug_tests"
+harness = false
+required-features = ["buffer", "console"]
+
+[[test]]
+name = "module_spec_tests"
+harness = false
+required-features = ["buffer", "console"]

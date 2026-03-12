@@ -1,89 +1,52 @@
-RingBuffer
-Subtle: AtomicUsize::fetch_add with modulo means overwriting older logs is fine, but no protection against simultaneous writers producing interleaved output. Probably acceptable for debug logs.
 
-
-
-
-Notes / potential improvements
--Box::leak(crate_name.to_string().into_boxed_str()) in init_from_env()
-This is fine for global static usage but leaks memory. For a debug logger that lives for the lifetime of the program, it’s acceptable.
-
-RingBuffer interleaving
-Already noted: concurrent pushes can interleave bytes. Acceptable for debug logs.
-
-use_config_init()
-Currently takes Option<&[(&str, Level)]>; works fine.
-Make sure this is only used when log-env-support feature is enabled.
-
-Fallback in write_log
-You fallback to stdout when DEBUG_CONTEXT isn’t initialized, which is good.
-
-Macros
-Clean and simple, no hidden closure calls.
-Supports format arguments like println!.
-
-Thread safety
-DEBUG_CONTEXT is safe once set.
-RingBuffer is safe but may produce interleaved log lines in multi-threaded writes.
-
-
-My goal, broken down precisely:
-1. My macros (debug_dev!, info_dev!, etc.) are the only macros my crate provides.
-- They must never internally call log macros from the log crate.
-- They should write only to my internal system (buffer, console, etc.) directly.
-
-2. my crate can still accept and handle log messages from other crates that use the log crate (and potentially env_logger) in downstream dependencies.
-- This means if another crate calls log::debug!() or log::info!(), my crate should receive those messages and write them into my internal logging system (buffer/console).
-
-================================================
-3. Optional: my crate can forward my own logs (from my macros) to the log crate or env_logger so that downstream logging systems can see them.
-- But this forwarding is optional — it is not required for my macros themselves.
-
-no.3 still need to refine because when init run without features enabled still send message to another features
-=================================================
-
-4. Thread safety and performance:
-- Internal buffer writes must be thread-safe.
-- Console writes may optionally avoid locks for performance, but buffer writes must remain safe.
-
-5. Integration with downstream code:
-- my crate is intended to be used in a library that other crates depend on.
-- Downstream crates may use the log ecosystem, and their logs should be captured by my system without changing their code.
-
-
-Console + buffer logging
-Right now, logs are only sent to BufferWriter via Target::Pipe.
-console_out is not actually writing to stdout. If you want logs to appear in the console as well, you need to either:
-Use Target::Stdout for console logging, or
-Implement a combined writer that writes to both stdout and buffer.
-STDOUT_CAPTURE toggle
-Starts as false. Until stdout_capture(true) is called, logs are not stored in CONTEXT_BUFFER.
-VecDeque capacity
-LazyLock::new(|| Arc::new(Mutex::new(VecDeque::with_capacity(1000)))) sets the initial capacity, but the deque can still grow beyond 1000 unless capture_log enforces MAX_LOG_LINES. You do enforce it, so this is fine.
-Async file writing
-save_buffer_to_file_async() writes lines sequentially with .await for each line.
-For large buffers, this could be slower than batching. Consider using join_all or writing a single concatenated string asynchronously.
-BufferWriter::write
-Clones the string: self.capture_log(s.clone());. The clone is unnecessary; you can pass s directly.
 
 
 It doesn’t support asynchronous logging out of the box.
 It doesn’t support rotating files or network sinks.
 It’s mostly single-process oriented.
 
+//1. Panic / Expect Safety
+//Currently you expect() on locks (Mutex/RwLock). This is fine in controlled apps, but in production:
+//Consider returning errors instead of panicking on LOG_CONTEXT or MODULE_LOG_LEVELS locks.
+//Example: use unwrap_or_else(|_| { eprintln!("lock poisoned"); return; }) for non-critical logs.
 
-mini-logger — Lightweight, flexible Rust logging
-Description:
-mini-logger is a lightweight logging crate for Rust that provides multi-level, module-aware logging with minimal overhead. Designed primarily for developers, it is also suitable for small production setups.
-Key Features:
-Multi-level logging: Error, Warn, Info, Debug, Trace.
-Per-module log filtering: Control verbosity for specific crates or modules.
-Multiple output targets: Optional console output with ANSI colors and optional in-memory buffer.
-Buffer management: Retrieve logs from memory or save them to a file.
-Developer-friendly macros: error_dev!, warn_dev!, info_dev!, debug_dev!, trace_dev! automatically use the current module path.
-Configurable: Supports RUST_LOG environment variable or programmatic configuration.
-Lightweight and thread-safe: Uses Arc<Mutex> and LazyLock with minimal dependencies.
-Why use mini-logger?
-Ideal for debugging, testing, and development workflows.
-Robust enough to capture errors, warnings, and info in small to medium production apps.
-Easy to integrate and configure without introducing heavy logging frameworks.
+//2. Buffer Size / Memory Limits
+//Right now Vec<u8> grows unbounded in memory.
+//Consider limiting the buffer size to avoid OOM in long-running apps.
+//Could be a ring buffer (VecDeque) or capped Vec<u8> with dropping oldest logs.
+
+3. Async / Non-blocking Writes
+Currently, console writes (io::stdout) block threads.
+In high-performance apps, consider:
+Sending log messages to a dedicated logging thread via crossbeam_channel.
+Mutex is lightweight for occasional logs but can be a bottleneck under heavy logging.
+
+//4. Timestamps & Timezones
+//You’re using UTC timestamps with chrono. ✅ Good for consistency.
+//Optional: allow configurable local time, or human-readable formats in debug mode.
+
+//5. Macro Safety
+//Your macros are fine, but note:
+//format_args! defers formatting until log is enabled — efficient.
+//Ensure module_path!() captures the correct module in nested macros if you add wrappers.
+
+6. File Logging
+Currently only supports buffer → file manually.
+Optional improvements:
+Rolling logs (daily/hourly rotation)
+Async flushing to file to avoid blocking main threads
+
+//7. Windows / Terminal Colors
+//ANSI works on modern terminals. ✅
+//Optional: use console::Term::colorize or colored for future Windows 11+ compatibility if needed.
+
+//8. Testing / Benchmarking
+//Add unit tests for:
+//Module-specific log levels
+//Buffer retrieval correctness
+//Multi-threaded logging stress test
+//Benchmark: measure overhead per log, especially under heavy multi-threaded use.
+
+//9. Optional Features
+//Feature flags already exist (buffer, console). ✅
+//Consider adding feature = "timestamps" to toggle formatting if logging overhead matters.

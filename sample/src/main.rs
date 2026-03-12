@@ -10,14 +10,6 @@ fn main() {
     simple_debug::debug_dev!("this is main");
     // ext_debug::run_ext_debug();
 
-    for i in 0..3 {
-        std::thread::spawn(move || {
-            for j in 0..5 {
-                simple_debug::debug_dev!("thread {} log {}", i, j);
-            }
-        });
-    }
-
     if let Some(content) = debug_log.get_log_from_buffer() {
         println!(
             "==========\nFROM INSTANT DEBUG INIT\nBuffer content:\n{}\nEnd\n=========",
