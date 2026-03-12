@@ -1,4 +1,4 @@
-mod time;
+use chrono;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs::File;
@@ -7,7 +7,6 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
-pub use time::*;
 
 #[cfg(feature = "buffer")]
 const USE_BUFFER: bool = true;
@@ -319,10 +318,7 @@ pub fn write_log(module: &str, level: Level, args: std::fmt::Arguments) {
 ///
 /// Returns the fully formatted log string.
 fn format_log(module: &str, level: Level, args: std::fmt::Arguments, use_color: bool) -> String {
-    // let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    time::set_time_mode(time::TimeMode::Local);
-    time::set_time_format(time::TimeFormat::HumanReadable);
-    let ts = time::get_timestamp();
+    let ts = chrono::Local::now().format("%b %d %H:%M:%S").to_string();
     let color_level = color_for_level(level, use_color);
     let module_color = color_for_module(module, use_color);
     let reset = if use_color { "\x1b[0m" } else { "" };
