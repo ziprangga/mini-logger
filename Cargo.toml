@@ -1,5 +1,5 @@
 [package]
-name = "simple-debug"
+name = "mini-logger"
 version = "0.1.0"
 edition = "2024"
 authors = ["ziprangga"]
@@ -13,7 +13,6 @@ buffer = []
 
 [dependencies]
 chrono = "0.4.44"
-tokio = { version = "1.50", features = ["full"] }
 
 [[test]]
 name = "simple_debug_tests"
