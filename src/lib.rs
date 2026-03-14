@@ -1,15 +1,10 @@
-mod log_msg;
-mod output;
+mod logger;
 mod style;
-
-pub use log_msg::*;
-pub use output::*;
-pub use style::*;
-
 mod writer;
+
+pub use logger::*;
+pub use style::{Color, ColorStyle, Timestamp, TimestampPrecision};
 pub use writer::*;
-mod formatter;
-pub use formatter::*;
 
 // use chrono;
 // use std::collections::HashMap;

@@ -5,12 +5,12 @@ use std::time::SystemTime;
 use crate::style::{ColorStyle, Timestamp, TimestampPrecision};
 use crate::writer::{Buffer, BufferWriter};
 
-pub struct Formatter {
+pub struct LogFormatter {
     buffer: Rc<RefCell<Buffer>>,
     color_style: ColorStyle,
 }
 
-impl std::io::prelude::Write for Formatter {
+impl std::io::prelude::Write for LogFormatter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.buffer.borrow_mut().write(buf)
     }
@@ -20,7 +20,7 @@ impl std::io::prelude::Write for Formatter {
     }
 }
 
-impl Formatter {
+impl LogFormatter {
     pub fn new(writer: &BufferWriter) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(writer.buffer())),

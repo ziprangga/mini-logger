@@ -1,175 +1,210 @@
-use std::{io, sync::Mutex};
+use crate::format::Formatter;
+use crate::style::TimestampPrecision;
+use std::io::{self, Write};
 
-use crate::writer::WriteStyle;
-
-#[derive(Debug)]
-pub(crate) struct BufferWriter {
-    target: WritableTarget,
-    write_style: WriteStyle,
+/// Configuration for how to format log records
+pub struct ConfigFormat {
+    pub timestamp: Option<TimestampPrecision>,
+    pub level: bool,
+    pub module_path: bool,
+    pub target: bool,
+    pub source_file: bool,
+    pub source_line_number: bool,
+    pub indent: Option<usize>,
+    pub suffix: &'static str,
 }
 
-impl BufferWriter {
-    pub(crate) fn stderr(is_test: bool, write_style: WriteStyle) -> Self {
-        BufferWriter {
-            target: if is_test {
-                WritableTarget::PrintStderr
-            } else {
-                WritableTarget::WriteStderr
-            },
-            write_style,
+// impl ConfigFormat {
+//     pub fn format(
+//         &self,
+//         formatter: &mut Formatter,
+//         log_message: &LogMessage<'_>,
+//     ) -> io::Result<()> {
+//         let fmt = ConfigFormatWriter {
+//             config: self,
+//             buf: formatter,
+//             written_header: false,
+//         };
+
+//         fmt.write(record)
+//     }
+// }
+
+impl Default for ConfigFormat {
+    fn default() -> Self {
+        Self {
+            timestamp: Some(TimestampPrecision::Seconds),
+            level: true,
+            module_path: false,
+            target: true,
+            source_file: false,
+            source_line_number: false,
+            indent: Some(4),
+            suffix: "\n",
+        }
+    }
+}
+
+/// Writer for a record using a given config and formatter
+pub struct ConfigFormatWriter<'a> {
+    pub config: &'a ConfigFormat,
+    pub buf: &'a mut Formatter,
+    written_header: bool,
+}
+
+impl<'a> ConfigFormatWriter<'a> {
+    pub fn new(config: &'a ConfigFormat, buf: &'a mut Formatter) -> Self {
+        Self {
+            config,
+            buf,
+            written_header: false,
         }
     }
 
-    pub(crate) fn stdout(is_test: bool, write_style: WriteStyle) -> Self {
-        BufferWriter {
-            target: if is_test {
-                WritableTarget::PrintStdout
-            } else {
-                WritableTarget::WriteStdout
-            },
-            write_style,
+    fn write_header_value<T: std::fmt::Display>(&mut self, value: T) -> std::io::Result<()> {
+        if !self.written_header {
+            self.written_header = true;
+            write!(self.buf, "[{}", value)
+        } else {
+            write!(self.buf, " {}", value)
         }
     }
 
-    pub(crate) fn pipe(
-        pipe: Box<Mutex<dyn io::Write + Send + 'static>>,
-        write_style: WriteStyle,
-    ) -> Self {
-        BufferWriter {
-            target: WritableTarget::Pipe(pipe),
-            write_style,
+    fn finish_header(&mut self) -> io::Result<()> {
+        if self.written_header {
+            write!(self.buf, "] ")?;
         }
+        Ok(())
     }
 
-    pub(crate) fn write_style(&self) -> WriteStyle {
-        self.write_style
-    }
+    pub fn write_record(
+        &mut self,
+        level: Option<&str>,
+        module_path: Option<&str>,
+        target: Option<&str>,
+        file: Option<&str>,
+        line: Option<u32>,
+        message: &str,
+    ) -> io::Result<()> {
+        // Timestamp
+        if let Some(ts) = self.config.timestamp {
+            let timestamp = self.buf.timestamp(ts);
+            self.write_header_value(timestamp)?;
+        }
 
-    pub(crate) fn buffer(&self) -> Buffer {
-        Buffer(Vec::new())
-    }
-
-    pub(crate) fn print(&self, buf: &Buffer) -> io::Result<()> {
-        #![allow(clippy::print_stdout)] // enabled for tests only
-        #![allow(clippy::print_stderr)] // enabled for tests only
-
-        use std::io::Write as _;
-
-        let buf = buf.as_bytes();
-        match &self.target {
-            WritableTarget::WriteStdout => {
-                let stream = io::stdout();
-                #[cfg(feature = "color")]
-                let stream = anstream::AutoStream::new(stream, self.write_style.into());
-                let mut stream = stream.lock();
-                stream.write_all(buf)?;
-                stream.flush()?;
-            }
-            WritableTarget::PrintStdout => {
-                #[cfg(feature = "color")]
-                let buf = adapt(buf, self.write_style)?;
-                #[cfg(feature = "color")]
-                let buf = &buf;
-                let buf = String::from_utf8_lossy(buf);
-                print!("{buf}");
-            }
-            WritableTarget::WriteStderr => {
-                let stream = io::stderr();
-                #[cfg(feature = "color")]
-                let stream = anstream::AutoStream::new(stream, self.write_style.into());
-                let mut stream = stream.lock();
-                stream.write_all(buf)?;
-                stream.flush()?;
-            }
-            WritableTarget::PrintStderr => {
-                #[cfg(feature = "color")]
-                let buf = adapt(buf, self.write_style)?;
-                #[cfg(feature = "color")]
-                let buf = &buf;
-                let buf = String::from_utf8_lossy(buf);
-                eprint!("{buf}");
-            }
-            WritableTarget::Pipe(pipe) => {
-                #[cfg(feature = "color")]
-                let buf = adapt(buf, self.write_style)?;
-                #[cfg(feature = "color")]
-                let buf = &buf;
-                let mut stream = pipe.lock().expect("no panics while held");
-                stream.write_all(buf)?;
-                stream.flush()?;
+        // Level
+        if self.config.level {
+            if let Some(level) = level {
+                self.write_header_value(level)?;
             }
         }
+
+        // Module path
+        if self.config.module_path {
+            if let Some(module_path) = module_path {
+                self.write_header_value(module_path)?;
+            }
+        }
+
+        // Source file + line
+        if self.config.source_file {
+            if let Some(file) = file {
+                let value = if self.config.source_line_number {
+                    match line {
+                        Some(line) => format!("{file}:{line}"),
+                        None => file.to_string(),
+                    }
+                } else {
+                    file.to_string()
+                };
+                self.write_header_value(value)?;
+            }
+        }
+
+        // Target
+        if self.config.target {
+            if let Some(target) = target {
+                if !target.is_empty() {
+                    self.write_header_value(target)?;
+                }
+            }
+        }
+
+        // Finish header
+        self.finish_header()?;
+
+        // Message with indent
+        if let Some(indent) = self.config.indent {
+            for (i, line) in message.lines().enumerate() {
+                if i > 0 {
+                    write!(self.buf, "{}{}", self.config.suffix, " ".repeat(indent))?;
+                }
+                write!(self.buf, "{}", line)?;
+            }
+        } else {
+            write!(self.buf, "{}", message)?;
+        }
+
+        // Suffix
+        write!(self.buf, "{}", self.config.suffix)?;
 
         Ok(())
     }
 }
 
-#[cfg(feature = "color")]
-fn adapt(buf: &[u8], write_style: WriteStyle) -> io::Result<Vec<u8>> {
-    use std::io::Write as _;
-
-    let adapted = Vec::with_capacity(buf.len());
-    let mut stream = anstream::AutoStream::new(adapted, write_style.into());
-    stream.write_all(buf)?;
-    let adapted = stream.into_inner();
-    Ok(adapted)
+/// Optional builder to simplify setting up ConfigFormat
+pub struct FormatBuilder {
+    config: ConfigFormat,
 }
 
-pub(crate) struct Buffer(Vec<u8>);
-
-impl Buffer {
-    pub(crate) fn clear(&mut self) {
-        self.0.clear();
+impl FormatBuilder {
+    pub fn new() -> Self {
+        Self {
+            config: ConfigFormat::default(),
+        }
     }
 
-    pub(crate) fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend(buf);
-        Ok(buf.len())
+    pub fn timestamp(mut self, precision: Option<TimestampPrecision>) -> Self {
+        self.config.timestamp = precision;
+        self
     }
 
-    pub(crate) fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    pub fn level(mut self, enabled: bool) -> Self {
+        self.config.level = enabled;
+        self
     }
 
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        &self.0
+    pub fn module_path(mut self, enabled: bool) -> Self {
+        self.config.module_path = enabled;
+        self
     }
-}
 
-impl std::fmt::Debug for Buffer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        String::from_utf8_lossy(self.as_bytes()).fmt(f)
+    pub fn target(mut self, enabled: bool) -> Self {
+        self.config.target = enabled;
+        self
     }
-}
 
-/// Log target, either `stdout`, `stderr` or a custom pipe.
-///
-/// Same as `Target`, except the pipe is wrapped in a mutex for interior mutability.
-pub(crate) enum WritableTarget {
-    /// Logs will be written to standard output.
-    WriteStdout,
-    /// Logs will be printed to standard output.
-    PrintStdout,
-    /// Logs will be written to standard error.
-    WriteStderr,
-    /// Logs will be printed to standard error.
-    PrintStderr,
-    /// Logs will be sent to a custom pipe.
-    Pipe(Box<Mutex<dyn io::Write + Send + 'static>>),
-}
+    pub fn file(mut self, enabled: bool) -> Self {
+        self.config.source_file = enabled;
+        self
+    }
 
-impl std::fmt::Debug for WritableTarget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::WriteStdout => "stdout",
-                Self::PrintStdout => "stdout",
-                Self::WriteStderr => "stderr",
-                Self::PrintStderr => "stderr",
-                Self::Pipe(_) => "pipe",
-            }
-        )
+    pub fn line_number(mut self, enabled: bool) -> Self {
+        self.config.source_line_number = enabled;
+        self
+    }
+
+    pub fn indent(mut self, spaces: Option<usize>) -> Self {
+        self.config.indent = spaces;
+        self
+    }
+
+    pub fn suffix(mut self, suffix: &'static str) -> Self {
+        self.config.suffix = suffix;
+        self
+    }
+
+    pub fn build(self) -> ConfigFormat {
+        self.config
     }
 }

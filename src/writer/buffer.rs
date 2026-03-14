@@ -1,4 +1,4 @@
-use crate::output::Output;
+use super::Output;
 use crate::style::ColorStyle;
 
 pub struct Buffer(Vec<u8>);

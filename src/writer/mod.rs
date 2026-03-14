@@ -1,3 +1,7 @@
+mod buffer;
+
+pub use buffer::*;
+
 #[derive(Default)]
 pub enum Output {
     #[default]
