@@ -8,7 +8,6 @@ use std::io::{self, Write};
 #[derive(Clone, Debug)]
 pub struct LogMessage<'a> {
     log_config: LogConfig<'a>,
-    timestamp: Option<TimestampPrecision>,
     module: Option<&'a str>,
     msg: std::fmt::Arguments<'a>,
 }
@@ -35,8 +34,8 @@ impl<'a> LogMessage<'a> {
     }
 
     #[inline]
-    pub fn timestamp(&self) -> Option<TimestampPrecision> {
-        self.timestamp
+    pub fn timestamp(&self) -> TimestampPrecision {
+        self.log_config.timestamp()
     }
 
     #[inline]
@@ -54,7 +53,6 @@ impl Default for LogMessage<'_> {
     fn default() -> Self {
         Self {
             log_config: LogConfig::builder().build(),
-            timestamp: Some(TimestampPrecision::Seconds),
             module: None,
             msg: format_args!(""),
         }
@@ -83,7 +81,12 @@ impl<'a> LogMessageBuilder<'a> {
     #[inline]
     pub fn level(&mut self, level: Level) -> &mut Self {
         let target = self.log_message.log_config.target();
-        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
+        let timestamp = self.log_message.log_config.timestamp();
+        self.log_message.log_config = LogConfig::builder()
+            .level(level)
+            .target(target)
+            .timestamp(timestamp)
+            .build();
 
         self
     }
@@ -91,13 +94,24 @@ impl<'a> LogMessageBuilder<'a> {
     #[inline]
     pub fn target(&mut self, target: &'a str) -> &mut Self {
         let level = self.log_message.log_config.level();
-        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
+        let timestamp = self.log_message.log_config.timestamp();
+        self.log_message.log_config = LogConfig::builder()
+            .level(level)
+            .target(target)
+            .timestamp(timestamp)
+            .build();
         self
     }
 
     #[inline]
-    pub fn timestamp(&mut self, ts: Option<TimestampPrecision>) -> &mut Self {
-        self.log_message.timestamp = ts;
+    pub fn timestamp(&mut self, ts: TimestampPrecision) -> &mut Self {
+        let level = self.log_message.log_config.level();
+        let target = self.log_message.log_config.target();
+        self.log_message.log_config = LogConfig::builder()
+            .level(level)
+            .target(target)
+            .timestamp(ts)
+            .build();
         self
     }
 
@@ -168,12 +182,9 @@ impl<'a> LogMessageFormatWriter<'a> {
     }
 
     fn write_timestamp(&mut self) -> io::Result<()> {
-        if let Some(precision) = self.log_message.timestamp() {
-            let ts = self.buf.timestamp(precision);
-            self.write_header_value(ts)?;
-        }
-
-        Ok(())
+        let ts_config = self.log_message.log_config().timestamp();
+        let ts = self.buf.timestamp(ts_config);
+        self.write_header_value(ts)
     }
 
     fn write_level(&mut self) -> io::Result<()> {

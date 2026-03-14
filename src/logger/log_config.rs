@@ -1,3 +1,4 @@
+use crate::style::TimestampPrecision;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
@@ -52,6 +53,7 @@ impl std::str::FromStr for Level {
 pub struct LogConfig<'a> {
     level: Level,
     target: &'a str,
+    timestamp: TimestampPrecision,
 }
 
 impl<'a> LogConfig<'a> {
@@ -69,6 +71,11 @@ impl<'a> LogConfig<'a> {
     pub fn target(&self) -> &'a str {
         self.target
     }
+
+    #[inline]
+    pub fn timestamp(&self) -> TimestampPrecision {
+        self.timestamp
+    }
 }
 
 impl Default for LogConfig<'_> {
@@ -76,6 +83,7 @@ impl Default for LogConfig<'_> {
         Self {
             level: Level::Debug,
             target: "",
+            timestamp: TimestampPrecision::Seconds,
         }
     }
 }
@@ -102,6 +110,12 @@ impl<'a> LogConfigBuilder<'a> {
     #[inline]
     pub fn target(&mut self, target: &'a str) -> &mut Self {
         self.log_config.target = target;
+        self
+    }
+
+    #[inline]
+    pub fn timestamp(&mut self, timestamp: TimestampPrecision) -> &mut Self {
+        self.log_config.timestamp = timestamp;
         self
     }
 
