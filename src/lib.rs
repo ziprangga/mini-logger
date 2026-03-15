@@ -8,17 +8,6 @@ pub use logger::*;
 pub use style::{Color, ColorStyle, Timestamp, TimestampPrecision};
 pub use writer::*;
 
-// #[derive[Default]]
-// pub struct LoggerBuilder {
-//     // writer: writer::Writer,
-//     log_config: logger::LogConfigBuilder,
-//     formatter: logger::LogMessageFormatWriter,
-// }
-
-// impl LoggerBuilder {
-//     pub fn new() -> Self {}
-// }
-
 // use std::cell::RefCell;
 // use std::sync::OnceLock;
 // use std::thread_local;

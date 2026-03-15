@@ -1,4 +1,3 @@
-use crate::style::TimestampPrecision;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
