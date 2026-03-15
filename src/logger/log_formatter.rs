@@ -1,7 +1,11 @@
 use std::cell::RefCell;
+use std::fmt::Display;
+use std::io::{self, Write};
 use std::rc::Rc;
-use std::time::SystemTime;
+// use std::time::SystemTime;
 
+use crate::logger::log_config::Level;
+use crate::logger::log_message::LogMessage;
 use crate::style::{ColorStyle, Timestamp, TimestampPrecision};
 use crate::writer::{Buffer, BufferWriter};
 
@@ -30,11 +34,8 @@ impl LogFormatter {
         self.buffer.borrow_mut().clear();
     }
 
-    pub fn timestamp(&self, precision: TimestampPrecision) -> Timestamp {
-        Timestamp {
-            time: SystemTime::now(),
-            precision,
-        }
+    pub fn timestamp(&self) -> Timestamp {
+        Timestamp::default()
     }
 }
 
@@ -45,5 +46,170 @@ impl std::io::prelude::Write for LogFormatter {
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.buffer.borrow_mut().flush()
+    }
+}
+
+pub trait FormatRecord {
+    fn format_record(
+        &self,
+        format: &mut LogFormatter,
+        record_msg: &LogMessage<'_>,
+    ) -> std::io::Result<()>;
+}
+
+pub struct ConfigFormat {
+    pub timestamp: Option<TimestampPrecision>,
+    pub level: bool,
+    pub target: bool,
+    pub module_path: bool,
+}
+
+impl ConfigFormat {
+    pub fn timestamp(&mut self, timestamp: Option<TimestampPrecision>) -> &mut Self {
+        self.timestamp = timestamp;
+        self
+    }
+    pub fn level(&mut self, write: bool) -> &mut Self {
+        self.level = write;
+        self
+    }
+    pub fn target(&mut self, write: bool) -> &mut Self {
+        self.target = write;
+        self
+    }
+    pub fn module_path(&mut self, write: bool) -> &mut Self {
+        self.module_path = write;
+        self
+    }
+}
+
+impl Default for ConfigFormat {
+    fn default() -> Self {
+        Self {
+            timestamp: Some(TimestampPrecision::default()),
+            level: false,
+            target: true,
+            module_path: true,
+        }
+    }
+}
+
+impl FormatRecord for ConfigFormat {
+    fn format_record(
+        &self,
+        formatter: &mut LogFormatter,
+        record_msg: &LogMessage<'_>,
+    ) -> io::Result<()> {
+        let fmt = FormatWriter {
+            format: self,
+            buf: formatter,
+            written_header: false,
+        };
+
+        fmt.write(record_msg)
+    }
+}
+
+struct FormatWriter<'a> {
+    pub format: &'a ConfigFormat,
+    pub buf: &'a mut LogFormatter,
+    written_header: bool,
+}
+
+impl FormatWriter<'_> {
+    #[inline]
+    pub fn write(mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+        self.write_timestamp()?;
+        self.write_level(record_msg)?;
+        self.write_target(record_msg)?;
+        self.write_module(record_msg)?;
+        self.finish_header()?;
+        self.write_args(record_msg)
+    }
+
+    fn write_header_value<T>(&mut self, value: T) -> io::Result<()>
+    where
+        T: Display,
+    {
+        if !self.written_header {
+            self.written_header = true;
+            write!(self.buf, "[{value}]")?;
+        } else {
+            write!(self.buf, " {value}")?;
+        }
+
+        Ok(())
+    }
+
+    fn write_timestamp(&mut self) -> io::Result<()> {
+        {
+            use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
+            let ts = match self.format.timestamp {
+                None => return Ok(()),
+                Some(Seconds) => self.buf.timestamp().timestamp_seconds(),
+                Some(Millis) => self.buf.timestamp().timestamp_millis(),
+                Some(Micros) => self.buf.timestamp().timestamp_micros(),
+                Some(Nanos) => self.buf.timestamp().timestamp_nanos(),
+            };
+
+            self.write_header_value(ts)
+        }
+    }
+
+    fn write_level(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+        if !self.format.level {
+            return Ok(());
+        }
+
+        use crate::style::Color;
+        let (level_str, color) = match record_msg.level() {
+            Level::Off => ("OFF", Color::Reset),
+            Level::Error => ("ERROR", Color::Red),
+            Level::Warn => ("WARN", Color::Yellow),
+            Level::Info => ("INFO", Color::Green),
+            Level::Debug => ("DEBUG", Color::Blue),
+            Level::Trace => ("TRACE", Color::Blue),
+        };
+        self.write_header_value(format_args!(
+            "{}{:<5}{}",
+            self.buf.color_style().color(color),
+            level_str,
+            self.buf.color_style().reset()
+        ))
+    }
+
+    fn write_target(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+        if !self.format.target {
+            return Ok(());
+        }
+
+        let target = record_msg.target();
+        if target.is_empty() {
+            return Ok(());
+        }
+
+        self.write_header_value(target)
+    }
+
+    fn write_module(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+        if !self.format.module_path {
+            return Ok(());
+        }
+        if let Some(module) = record_msg.module() {
+            self.write_header_value(module)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn finish_header(&mut self) -> io::Result<()> {
+        if self.written_header {
+            write!(self.buf, "] ")?;
+        }
+        Ok(())
+    }
+
+    fn write_args(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+        write!(self.buf, "{}", record_msg.msg())
     }
 }

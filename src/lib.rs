@@ -1,10 +1,23 @@
+mod filter;
 mod logger;
 mod style;
 mod writer;
 
+pub use filter::*;
 pub use logger::*;
 pub use style::{Color, ColorStyle, Timestamp, TimestampPrecision};
 pub use writer::*;
+
+// #[derive[Default]]
+// pub struct LoggerBuilder {
+//     // writer: writer::Writer,
+//     log_config: logger::LogConfigBuilder,
+//     formatter: logger::LogMessageFormatWriter,
+// }
+
+// impl LoggerBuilder {
+//     pub fn new() -> Self {}
+// }
 
 // use std::cell::RefCell;
 // use std::sync::OnceLock;
@@ -13,14 +26,14 @@ pub use writer::*;
 // static LOGGER: OnceLock<Logger> = OnceLock::new();
 
 // thread_local! {
-//     static FORMATTER: RefCell<Option<LogFormatter>> = RefCell::new(None);
+//     static FORMATTER: RefCell<Option<LogFormatter>> = const {RefCell::new(None)};
 // }
 
 // pub struct Logger {
 //     writer: writer::Writer,
-//     filter: env_filter::Filter,
-//     format: FormatFn,
-// };
+//     // filter: filter::Filter,
+//     format: logger::LogFormatter,
+// }
 
 // impl Logger {
 

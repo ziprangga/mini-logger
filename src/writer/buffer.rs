@@ -101,11 +101,11 @@ impl BufferWriter {
 }
 
 #[derive(Debug)]
-pub struct WriterBuilder {
+pub struct Writer {
     buffer_writer: BufferWriter,
 }
 
-impl WriterBuilder {
+impl Writer {
     pub fn new() -> Self {
         Self {
             buffer_writer: BufferWriter::default(),

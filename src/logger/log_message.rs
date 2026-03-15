@@ -1,9 +1,4 @@
-use super::LogFormatter;
 use super::{Level, LogConfig};
-use crate::style::TimestampPrecision;
-
-use std::fmt::Display;
-use std::io::{self, Write};
 
 #[derive(Clone, Debug)]
 pub struct LogMessage<'a> {
@@ -31,11 +26,6 @@ impl<'a> LogMessage<'a> {
     #[inline]
     pub fn target(&self) -> &'a str {
         self.log_config.target()
-    }
-
-    #[inline]
-    pub fn timestamp(&self) -> TimestampPrecision {
-        self.log_config.timestamp()
     }
 
     #[inline]
@@ -81,12 +71,8 @@ impl<'a> LogMessageBuilder<'a> {
     #[inline]
     pub fn level(&mut self, level: Level) -> &mut Self {
         let target = self.log_message.log_config.target();
-        let timestamp = self.log_message.log_config.timestamp();
-        self.log_message.log_config = LogConfig::builder()
-            .level(level)
-            .target(target)
-            .timestamp(timestamp)
-            .build();
+
+        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
 
         self
     }
@@ -94,24 +80,8 @@ impl<'a> LogMessageBuilder<'a> {
     #[inline]
     pub fn target(&mut self, target: &'a str) -> &mut Self {
         let level = self.log_message.log_config.level();
-        let timestamp = self.log_message.log_config.timestamp();
-        self.log_message.log_config = LogConfig::builder()
-            .level(level)
-            .target(target)
-            .timestamp(timestamp)
-            .build();
-        self
-    }
 
-    #[inline]
-    pub fn timestamp(&mut self, ts: TimestampPrecision) -> &mut Self {
-        let level = self.log_message.log_config.level();
-        let target = self.log_message.log_config.target();
-        self.log_message.log_config = LogConfig::builder()
-            .level(level)
-            .target(target)
-            .timestamp(ts)
-            .build();
+        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
         self
     }
 
@@ -131,100 +101,10 @@ impl<'a> LogMessageBuilder<'a> {
     pub fn build(&self) -> LogMessage<'a> {
         self.log_message.clone()
     }
-
-    // pub fn build_record(&self, log_formatter: &mut LogFormatter) -> io::Result<()> {
-    //     let msg = self.build();
-    //     let fmt = LogMessageFormatWriter {
-    //         log_message: &msg,
-    //         buf: log_formatter,
-    //         written_header: false,
-    //     };
-
-    //     fmt.write()
-    // }
 }
 
 impl Default for LogMessageBuilder<'_> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub struct LogMessageFormatWriter<'a> {
-    pub log_message: &'a LogMessage<'a>,
-    pub buf: &'a mut LogFormatter,
-    written_header: bool,
-}
-
-impl<'a> LogMessageFormatWriter<'a> {
-    #[inline]
-    pub fn write(mut self) -> io::Result<()> {
-        self.write_timestamp()?;
-        self.write_level()?;
-        self.write_target()?;
-        self.write_module()?;
-        self.finish_header()?;
-        self.write_args()
-    }
-
-    fn write_header_value<T>(&mut self, value: T) -> io::Result<()>
-    where
-        T: Display,
-    {
-        if !self.written_header {
-            self.written_header = true;
-            write!(self.buf, "[{value}]")?;
-        } else {
-            write!(self.buf, " {value}")?;
-        }
-
-        Ok(())
-    }
-
-    fn write_timestamp(&mut self) -> io::Result<()> {
-        let ts_config = self.log_message.log_config().timestamp();
-        let ts = self.buf.timestamp(ts_config);
-        self.write_header_value(ts)
-    }
-
-    fn write_level(&mut self) -> io::Result<()> {
-        let level = match self.log_message.level() {
-            Level::Off => "OFF",
-            Level::Error => "ERROR",
-            Level::Warn => "WARN",
-            Level::Info => "INFO",
-            Level::Debug => "DEBUG",
-            Level::Trace => "TRACE",
-        };
-
-        self.write_header_value(format_args!("{level:<5}"))
-    }
-
-    fn write_target(&mut self) -> io::Result<()> {
-        let target = self.log_message.target();
-        if target.is_empty() {
-            return Ok(());
-        }
-
-        self.write_header_value(target)
-    }
-
-    fn write_module(&mut self) -> io::Result<()> {
-        if let Some(module) = self.log_message.module() {
-            self.write_header_value(module)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn finish_header(&mut self) -> io::Result<()> {
-        if self.written_header {
-            write!(self.buf, "] ")?;
-        }
-        Ok(())
-    }
-
-    fn write_args(&mut self) -> io::Result<()> {
-        write!(self.buf, "{}", self.log_message.msg())
     }
 }

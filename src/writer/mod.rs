@@ -1,6 +1,6 @@
 mod buffer;
 
-pub use buffer::*;
+pub use buffer::{Buffer, BufferWriter, Writer};
 
 #[derive(Default)]
 pub enum Output {
