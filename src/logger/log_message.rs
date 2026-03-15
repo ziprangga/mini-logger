@@ -132,16 +132,16 @@ impl<'a> LogMessageBuilder<'a> {
         self.log_message.clone()
     }
 
-    pub fn build_record(&self, log_formatter: &mut LogFormatter) -> io::Result<()> {
-        let msg = self.build();
-        let fmt = LogMessageFormatWriter {
-            log_message: &msg,
-            buf: log_formatter,
-            written_header: false,
-        };
+    // pub fn build_record(&self, log_formatter: &mut LogFormatter) -> io::Result<()> {
+    //     let msg = self.build();
+    //     let fmt = LogMessageFormatWriter {
+    //         log_message: &msg,
+    //         buf: log_formatter,
+    //         written_header: false,
+    //     };
 
-        fmt.write()
-    }
+    //     fmt.write()
+    // }
 }
 
 impl Default for LogMessageBuilder<'_> {
@@ -228,20 +228,3 @@ impl<'a> LogMessageFormatWriter<'a> {
         write!(self.buf, "{}", self.log_message.msg())
     }
 }
-
-// use std::sync::OnceLock;
-// static LOGGER: OnceLock<&'static dyn Logger> = OnceLock::new();
-
-// pub trait Logger: Send + Sync {
-//     fn enable(&self, log_config: &LogConfig) -> bool;
-//     fn log_msg(&self, log_message: &LogMessage);
-//     fn flush(&self);
-// }
-
-// pub fn set_logger(logger: &'static dyn Logger) -> Result<(), &'static str> {
-//     LOGGER.set(logger).map_err(|_| "Logger already set")
-// }
-
-// pub fn logger() -> Option<&'static dyn Logger> {
-//     LOGGER.get().copied()
-// }

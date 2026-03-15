@@ -10,16 +10,6 @@ pub struct LogFormatter {
     color_style: ColorStyle,
 }
 
-impl std::io::prelude::Write for LogFormatter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buffer.borrow_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.buffer.borrow_mut().flush()
-    }
-}
-
 impl LogFormatter {
     pub fn new(writer: &BufferWriter) -> Self {
         Self {
@@ -45,5 +35,15 @@ impl LogFormatter {
             time: SystemTime::now(),
             precision,
         }
+    }
+}
+
+impl std::io::prelude::Write for LogFormatter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.borrow_mut().write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.buffer.borrow_mut().flush()
     }
 }
