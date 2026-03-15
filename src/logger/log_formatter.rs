@@ -57,14 +57,39 @@ pub trait FormatRecord {
     ) -> std::io::Result<()>;
 }
 
-pub struct ConfigFormat {
+impl<F> FormatRecord for F
+where
+    F: Fn(&mut LogFormatter, &LogMessage<'_>) -> io::Result<()>,
+{
+    fn format_record(
+        &self,
+        formatter: &mut LogFormatter,
+        record_msg: &LogMessage<'_>,
+    ) -> io::Result<()> {
+        (self)(formatter, record_msg)
+    }
+}
+
+pub type FormatFn = Box<dyn FormatRecord + Sync + Send>;
+
+pub struct FormatBuilder {
+    format: FormatFn,
+}
+
+impl FormatBuilder {
+    pub fn build(self) -> FormatFn {
+        self.format
+    }
+}
+
+pub struct FormatConfig {
     pub timestamp: Option<TimestampPrecision>,
     pub level: bool,
     pub target: bool,
     pub module_path: bool,
 }
 
-impl ConfigFormat {
+impl FormatConfig {
     pub fn timestamp(&mut self, timestamp: Option<TimestampPrecision>) -> &mut Self {
         self.timestamp = timestamp;
         self
@@ -83,7 +108,7 @@ impl ConfigFormat {
     }
 }
 
-impl Default for ConfigFormat {
+impl Default for FormatConfig {
     fn default() -> Self {
         Self {
             timestamp: Some(TimestampPrecision::default()),
@@ -94,7 +119,7 @@ impl Default for ConfigFormat {
     }
 }
 
-impl FormatRecord for ConfigFormat {
+impl FormatRecord for FormatConfig {
     fn format_record(
         &self,
         formatter: &mut LogFormatter,
@@ -111,7 +136,7 @@ impl FormatRecord for ConfigFormat {
 }
 
 struct FormatWriter<'a> {
-    pub format: &'a ConfigFormat,
+    pub format: &'a FormatConfig,
     pub buf: &'a mut LogFormatter,
     written_header: bool,
 }
