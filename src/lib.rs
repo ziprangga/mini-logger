@@ -135,7 +135,7 @@ impl Builder {
 pub struct Logger {
     writer: writer::Writer,
     filter: filter::Filter,
-    format: logger::LogFormat,
+    format: logger::FormatLog,
 }
 
 impl Logger {
@@ -155,8 +155,8 @@ impl Logger {
         self.filter.matches(record_msg)
     }
 
-    // pub fn enabled(&self, log_config: &LogConfig<'_>) -> bool {
-    //     self.filter.enabled(log_config)
+    // pub fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
+    //     self.filter.enabled(target, log_level)
     // }
 
     pub fn log_msg(&self, record_msg: &LogMessage<'_>) {
@@ -199,22 +199,23 @@ impl Logger {
         }
     }
 
-    // pub fn flush(&self) {
-    //     // Flush all thread-local formatters
-    //     let _ = LOG_FORMATTER.try_with(|tl_buf| {
-    //         if let Ok(mut slot) = tl_buf.try_borrow_mut() {
-    //             if let Some(ref mut log_formatter) = *slot {
-    //                 // print buffer
-    //                 let _ = log_formatter.print(&self.writer);
-    //                 // reset buffer
-    //                 log_formatter.clear();
-    //             }
-    //         }
-    //     });
+    pub fn flush(&self) {
+        // Flush all thread-local formatters
+        let _ = LOG_FORMATTER.try_with(|tl_buf| {
+            if let Ok(mut slot) = tl_buf.try_borrow_mut() {
+                if let Some(ref mut log_formatter) = *slot {
+                    // print buffer
+                    let _ = log_formatter.print(&self.writer);
+                    // reset buffer
+                    log_formatter.clear();
+                }
+            }
+        });
 
-    //     // Flush the underlying writer's buffer
-    //     let _ = self.writer.print_out(&self.writer.buffer());
-    // }
+        // Flush the underlying writer's buffer
+        // let _ = self.writer.print_out(&self.writer.buffer());
+        let _ = self.writer.flush();
+    }
 }
 
 // ================

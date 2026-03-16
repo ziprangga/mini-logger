@@ -136,6 +136,18 @@ impl Writer {
     pub fn print_out(&self, buf: &Buffer) -> std::io::Result<()> {
         self.buffer_writer.write_buffer(buf)
     }
+
+    pub fn flush(&self) -> std::io::Result<()> {
+        use std::io::Write as _;
+        match &self.buffer_writer.output {
+            Output::Stdout => std::io::stdout().flush(),
+            Output::Stderr => std::io::stderr().flush(),
+            Output::File(path) => {
+                let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
+                file.flush()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default)]
