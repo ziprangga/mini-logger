@@ -146,15 +146,3 @@ impl Default for LogConfigBuilder<'_> {
         Self::new()
     }
 }
-
-// #[derive(Debug)]
-// pub struct SetLogError(());
-
-// impl std::fmt::Display for SetLogError {
-//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         fmt.write_str(
-//             "attempted to set a logger after the logging system \
-//                                          was already initialized",
-//         )
-//     }
-// }

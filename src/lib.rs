@@ -262,24 +262,3 @@ macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::Level::Info, $($arg)
 macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::Level::Debug, $($arg)+) }; }
 #[macro_export]
 macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::Level::Trace, $($arg)+) }; }
-
-// // log_enabled! macro
-// #[macro_export]
-// macro_rules! log_enabled {
-//     ($lvl:expr) => {{
-//         if let Some(logger) = $crate::LOGGER.get() {
-//             logger.enabled($lvl, module_path!())
-//         } else {
-//             false
-//         }
-//     }};
-//     (target: $target:expr, $lvl:expr) => {{
-//         if let Some(logger) = $crate::LOGGER.get() {
-//             logger.enabled($lvl, $target)
-//         } else {
-//             false
-//         }
-//     }};
-//     (logger: $logger:expr, $lvl:expr) => {{ $logger.enabled($lvl, module_path!()) }};
-//     (logger: $logger:expr, target: $target:expr, $lvl:expr) => {{ $logger.enabled($lvl, $target) }};
-// }

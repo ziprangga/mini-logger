@@ -2,22 +2,22 @@ use mini_logger::*;
 mod try_module;
 
 fn main() {
-    // // Initialize the global logger
-    // mini_logger::init(); // sets defaults from RUST_LOG or Info
+    // Initialize the global logger
+    mini_logger::init(); // sets defaults from RUST_LOG or Info
 
-    // // Log messages at different levels
-    // error!("This is an error");
-    // warn!("This is a warning");
-    // info!("This is info");
-    // debug!("This is debug");
-    // trace!("This is trace");
+    // Log messages at different levels
+    error!("This is an error");
+    warn!("This is a warning");
+    info!("This is info");
+    debug!("This is debug");
+    trace!("This is trace");
 
-    //You can also test with the builder
-    mini_logger::Builder::new()
-        .filter_level(Level::Debug)
-        .default_format()
-        .output_stdout()
-        .init();
+    // //You can also test with the builder
+    // mini_logger::Builder::new()
+    //     .env_default()
+    //     .default_format()
+    //     .output_stdout()
+    //     .init();
 
     info!("Another info after builder init");
 
