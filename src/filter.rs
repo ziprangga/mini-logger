@@ -166,17 +166,6 @@ impl<'a> FilterEnv<'a> {
 
     pub fn parse_filter_string(&mut self, s: &str) -> &mut Self {
         for directive in s.split(',') {
-            //         let mut parts = directive.split('=');
-            //         let module = parts.next().unwrap_or("").trim();
-            //         let level_str = parts.next().unwrap_or("off").trim();
-
-            //         let level = level_str.parse::<Level>().unwrap_or(Level::Off);
-
-            //         if module.is_empty() {
-            //             self.builder.filter_level(level);
-            //         } else {
-            //             self.builder.filter_module(module, level);
-            //         }
             let directive = directive.trim();
             if directive.is_empty() {
                 continue;
