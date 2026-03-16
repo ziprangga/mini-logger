@@ -197,24 +197,68 @@ impl Logger {
     }
 }
 
-//==================================================================
-// use std::sync::OnceLock;
-// static LOGGER: OnceLock<&'static dyn Logger> = OnceLock::new();
-//
-// use std::sync::{OnceLock, Mutex};
+// ================
+// MACRO
+//=================
 
-// static LOGGER: OnceLock<Mutex<LogStruct>> = OnceLock::new();
+#[macro_export]
+macro_rules! log {
+    // logger + target
+    (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
+        let lvl = $lvl;
+        if lvl as usize <= $crate::LOG_LEVEL.load(Ordering::Relaxed) {
+            let msg = $crate::LogMessage::builder()
+                .level(lvl)
+                .msg(format_args!($($arg)+))
+                .build();
+            $logger.log_msg(&msg);
+        }
+    }};
+    // logger only
+    (logger: $logger:expr, $lvl:expr, $($arg:tt)+) => {
+        $crate::log!(logger: $logger, target: module_path!(), $lvl, $($arg)+)
+    };
+    // target only
+    (target: $target:expr, $lvl:expr, $($arg:tt)+) => {
+        if let Some(logger) = $crate::LOGGER.get() {
+            $crate::log!(logger: logger, target: $target, $lvl, $($arg)+)
+        }
+    };
+    // simple log
+    ($lvl:expr, $($arg:tt)+) => {
+        $crate::log!(target: module_path!(), $lvl, $($arg)+)
+    };
+}
 
-// pub trait Logger: Send + Sync {
-//     fn enable(&self, log_config: &LogConfig) -> bool;
-//     fn log_msg(&self, log_message: &LogMessage);
-//     fn flush(&self);
-// }
+// Level-specific macros
+#[macro_export]
+macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::Level::Error, $($arg)+) }; }
+#[macro_export]
+macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::Level::Warn, $($arg)+) }; }
+#[macro_export]
+macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::Level::Info, $($arg)+) }; }
+#[macro_export]
+macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::Level::Debug, $($arg)+) }; }
+#[macro_export]
+macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::Level::Trace, $($arg)+) }; }
 
-// pub fn set_logger(logger: &'static dyn Logger) -> Result<(), &'static str> {
-//     LOGGER.set(logger).map_err(|_| "Logger already set")
-// }
-
-// pub fn logger() -> Option<&'static dyn Logger> {
-//     LOGGER.get().copied()
+// // log_enabled! macro
+// #[macro_export]
+// macro_rules! log_enabled {
+//     ($lvl:expr) => {{
+//         if let Some(logger) = $crate::LOGGER.get() {
+//             logger.enabled($lvl, module_path!())
+//         } else {
+//             false
+//         }
+//     }};
+//     (target: $target:expr, $lvl:expr) => {{
+//         if let Some(logger) = $crate::LOGGER.get() {
+//             logger.enabled($lvl, $target)
+//         } else {
+//             false
+//         }
+//     }};
+//     (logger: $logger:expr, $lvl:expr) => {{ $logger.enabled($lvl, module_path!()) }};
+//     (logger: $logger:expr, target: $target:expr, $lvl:expr) => {{ $logger.enabled($lvl, $target) }};
 // }
