@@ -1,5 +1,6 @@
+use chrono::{DateTime, Utc};
 use std::fmt;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum TimestampPrecision {
@@ -49,6 +50,10 @@ impl Timestamp {
             precision: TimestampPrecision::Nanos,
         }
     }
+
+    fn datetime_utc(&self) -> DateTime<Utc> {
+        DateTime::<Utc>::from(self.time)
+    }
 }
 
 impl Default for Timestamp {
@@ -62,27 +67,13 @@ impl Default for Timestamp {
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let duration = match self.time.duration_since(UNIX_EPOCH) {
-            Ok(d) => d,
-            Err(_) => return Err(fmt::Error),
-        };
-
-        let secs = duration.as_secs();
-        let nanos = duration.subsec_nanos();
+        let dt = self.datetime_utc();
 
         match self.precision {
-            TimestampPrecision::Seconds => {
-                write!(f, "{secs}")
-            }
-            TimestampPrecision::Millis => {
-                write!(f, "{secs}.{:03}", nanos / 1_000_000)
-            }
-            TimestampPrecision::Micros => {
-                write!(f, "{secs}.{:06}", nanos / 1_000)
-            }
-            TimestampPrecision::Nanos => {
-                write!(f, "{secs}.{:09}", nanos)
-            }
+            TimestampPrecision::Seconds => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
+            TimestampPrecision::Millis => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.3f")),
+            TimestampPrecision::Micros => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.6f")),
+            TimestampPrecision::Nanos => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.9f")),
         }
     }
 }

@@ -20,6 +20,18 @@ impl Level {
     }
 
     #[inline]
+    pub fn get_level() -> Level {
+        match LOG_LEVEL.load(Ordering::Relaxed) {
+            1 => Level::Error,
+            2 => Level::Warn,
+            3 => Level::Info,
+            4 => Level::Debug,
+            5 => Level::Trace,
+            _ => Level::Off,
+        }
+    }
+
+    #[inline]
     pub fn from_usize(val: usize) -> Self {
         match val {
             1 => Level::Error,
@@ -28,6 +40,18 @@ impl Level {
             4 => Level::Debug,
             5 => Level::Trace,
             _ => Level::Off,
+        }
+    }
+
+    #[inline]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Level::Off => "OFF",
+            Level::Error => "ERROR",
+            Level::Warn => "WARN",
+            Level::Info => "INFO",
+            Level::Debug => "DEBUG",
+            Level::Trace => "TRACE",
         }
     }
 }

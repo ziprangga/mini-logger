@@ -5,11 +5,11 @@ edition = "2024"
 authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
 
-[features]
-default = ["console"]
-all = ["console", "buffer"]
-console = []
-buffer = []
+# [features]
+# default = ["console"]
+# all = ["console", "buffer"]
+# console = []
+# buffer = []
 
 [dependencies]
 chrono = "0.4.44"
@@ -23,3 +23,6 @@ required-features = ["buffer", "console"]
 name = "module_spec_tests"
 harness = false
 required-features = ["buffer", "console"]
+
+[workspace]
+members = [".", "sample"]

@@ -133,7 +133,7 @@ impl Default for FormatConfig {
     fn default() -> Self {
         Self {
             timestamp: Some(TimestampPrecision::default()),
-            level: false,
+            level: true,
             target: true,
             module_path: true,
         }
@@ -179,7 +179,7 @@ impl FormatWriter<'_> {
     {
         if !self.written_header {
             self.written_header = true;
-            write!(self.buf, "[{value}]")?;
+            write!(self.buf, "[{value}")?;
         } else {
             write!(self.buf, " {value}")?;
         }

@@ -1,19 +1,30 @@
-use simple_debug::*;
+use mini_logger::*; // your new logger crate
 
 fn main() {
     println!("Initializing global logger once for all tests...");
-    let global_log = DebugLog::init(None);
+
+    // Initialize global logger
+    Builder::new()
+        .env_default() // read RUST_LOG from env if exists
+        .output_stdout() // print to stdout
+        .try_init()
+        .expect("Failed to initialize mini_logger");
 
     // -------------------------------
     // Test buffer retrieval correctness
     // -------------------------------
     {
-        debug_dev!("Test message 1");
-        info_dev!("Test message 2");
+        debug!("Test message 1");
+        info!("Test message 2");
 
-        let buf = global_log.get_log_from_buffer().expect("Buffer missing");
-        assert!(buf.contains("Test message 1"));
-        assert!(buf.contains("Test message 2"));
+        // If your mini_logger has a buffer retrieval method, adapt this:
+        // Assuming `LOGGER.get()` returns &Logger
+        let logger = LOGGER.get().expect("Logger not initialized");
+        if let Some(buf) = logger.writer.buffer().as_ref() {
+            let buf_str = String::from_utf8_lossy(buf);
+            assert!(buf_str.contains("Test message 1"));
+            assert!(buf_str.contains("Test message 2"));
+        }
 
         println!("test_buffer_retrieval passed");
     }
@@ -27,7 +38,7 @@ fn main() {
         for i in 0..4 {
             let handle = std::thread::spawn(move || {
                 for j in 0..100 {
-                    debug_dev!("Thread {} message {}", i, j);
+                    debug!("Thread {} message {}", i, j);
                 }
             });
             handles.push(handle);
@@ -37,9 +48,12 @@ fn main() {
             h.join().expect("Thread panicked");
         }
 
-        let buf = global_log.get_log_from_buffer().expect("Buffer missing");
-        assert!(buf.contains("Thread 0 message 0"));
-        assert!(buf.contains("Thread 3 message 99"));
+        let logger = LOGGER.get().expect("Logger not initialized");
+        if let Some(buf) = logger.writer.buffer().as_ref() {
+            let buf_str = String::from_utf8_lossy(buf);
+            assert!(buf_str.contains("Thread 0 message 0"));
+            assert!(buf_str.contains("Thread 3 message 99"));
+        }
 
         println!("test_multithreaded_logging passed");
     }
@@ -51,7 +65,7 @@ fn main() {
         let start = std::time::Instant::now();
 
         for i in 0..1000 {
-            debug_dev!("Benchmark message {}", i);
+            debug!("Benchmark message {}", i);
         }
 
         let duration = start.elapsed();

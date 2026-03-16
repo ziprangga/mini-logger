@@ -22,6 +22,10 @@ fn set_logger(logger: Logger) -> Result<(), &'static str> {
     LOGGER.set(logger).map_err(|_| "Logger already initialized")
 }
 
+fn get_logger() -> Option<&'static Logger> {
+    LOGGER.get()
+}
+
 fn try_init() -> Result<(), &'static str> {
     Builder::new().env_default().output_stdout().try_init()
 }
@@ -89,6 +93,11 @@ impl Builder {
         self
     }
 
+    pub fn default_format(&mut self) -> &mut Self {
+        self.format = Default::default();
+        self
+    }
+
     pub fn color_style(&mut self, color_style: ColorStyle) -> &mut Self {
         self.writer.color_style(color_style);
         self
@@ -130,12 +139,22 @@ pub struct Logger {
 }
 
 impl Logger {
+    pub fn set(logger: Logger) -> Result<(), &'static str> {
+        set_logger(logger)
+    }
+
+    pub fn get() -> Option<&'static Self> {
+        get_logger()
+    }
+
     pub fn filter(&self) -> Level {
         self.filter.filter()
     }
+
     pub fn matches(&self, record_msg: &LogMessage<'_>) -> bool {
         self.filter.matches(record_msg)
     }
+
     pub fn enabled(&self, log_config: &LogConfig<'_>) -> bool {
         self.filter.enabled(log_config)
     }
@@ -206,9 +225,11 @@ macro_rules! log {
     // logger + target
     (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
         let lvl = $lvl;
-        if lvl as usize <= $crate::LOG_LEVEL.load(Ordering::Relaxed) {
+        if lvl as usize <= $crate::Level::get_level() as usize {
             let msg = $crate::LogMessage::builder()
                 .level(lvl)
+                .target($target)
+                .module(Some(module_path!()))
                 .msg(format_args!($($arg)+))
                 .build();
             $logger.log_msg(&msg);
@@ -220,7 +241,7 @@ macro_rules! log {
     };
     // target only
     (target: $target:expr, $lvl:expr, $($arg:tt)+) => {
-        if let Some(logger) = $crate::LOGGER.get() {
+        if let Some(logger) = $crate::Logger::get() {
             $crate::log!(logger: logger, target: $target, $lvl, $($arg)+)
         }
     };
