@@ -6,8 +6,6 @@ pub struct Directive {
     level: Level,
 }
 
-impl Directive {}
-
 #[derive(Clone, Debug)]
 pub struct Filter {
     directives: Vec<Directive>,
@@ -69,16 +67,15 @@ impl Filter {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct FilterBuilder {
     filter: Filter,
-    built: bool,
 }
 
 impl FilterBuilder {
     pub fn new() -> Self {
         Self {
             filter: Filter::new(),
-            built: false,
         }
     }
 
@@ -91,28 +88,13 @@ impl FilterBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Filter {
-        assert!(!self.built, "attempt to re-use consumed builder");
-        self.built = true;
+    pub fn build(self) -> Filter {
+        self.filter
+    }
+}
 
-        let mut directives = if self.filter.directives.is_empty() {
-            vec![Directive {
-                name: None,
-                level: Level::Error,
-            }]
-        } else {
-            std::mem::take(&mut self.filter.directives)
-        };
-
-        directives.sort_by(|a, b| {
-            let alen = a.name.as_ref().map(|v| v.len()).unwrap_or(0);
-            let blen = b.name.as_ref().map(|v| v.len()).unwrap_or(0);
-            alen.cmp(&blen)
-        });
-
-        Filter {
-            directives,
-            filter_string: std::mem::take(&mut self.filter.filter_string),
-        }
+impl Default for FilterBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

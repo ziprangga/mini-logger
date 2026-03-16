@@ -7,7 +7,7 @@ use std::rc::Rc;
 use crate::logger::log_config::Level;
 use crate::logger::log_message::LogMessage;
 use crate::style::{ColorStyle, Timestamp, TimestampPrecision};
-use crate::writer::{Buffer, BufferWriter};
+use crate::writer::{Buffer, Writer};
 
 pub struct LogFormatter {
     buffer: Rc<RefCell<Buffer>>,
@@ -15,7 +15,7 @@ pub struct LogFormatter {
 }
 
 impl LogFormatter {
-    pub fn new(writer: &BufferWriter) -> Self {
+    pub fn new(writer: &Writer) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(writer.buffer())),
             color_style: writer.color_style(),
@@ -26,8 +26,8 @@ impl LogFormatter {
         self.color_style
     }
 
-    pub fn write(&self, writer: &BufferWriter) -> std::io::Result<()> {
-        writer.write(&self.buffer.borrow())
+    pub fn print(&self, writer: &Writer) -> std::io::Result<()> {
+        writer.print_out(&self.buffer.borrow())
     }
 
     pub fn clear(&mut self) {
@@ -41,7 +41,7 @@ impl LogFormatter {
 
 impl std::io::prelude::Write for LogFormatter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buffer.borrow_mut().write(buf)
+        self.buffer.borrow_mut().write_out(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -72,13 +72,19 @@ where
 
 pub type FormatFn = Box<dyn FormatRecord + Sync + Send>;
 
+#[derive(Default)]
 pub struct FormatBuilder {
-    format: FormatFn,
+    format_default: FormatConfig,
+    format_custom: Option<FormatFn>,
 }
 
 impl FormatBuilder {
     pub fn build(self) -> FormatFn {
-        self.format
+        if let Some(fmt) = self.format_custom {
+            fmt
+        } else {
+            Box::new(self.format_default)
+        }
     }
 }
 

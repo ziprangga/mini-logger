@@ -7,7 +7,7 @@ impl Buffer {
         self.0.clear()
     }
 
-    pub fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    pub fn write_out(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
         self.0.extend(buffer);
         Ok(buffer.len())
     }
@@ -70,7 +70,7 @@ impl BufferWriter {
         self.color_style
     }
 
-    pub fn write(&self, buf: &Buffer) -> std::io::Result<()> {
+    pub fn write_buffer(&self, buf: &Buffer) -> std::io::Result<()> {
         use std::io::Write as _;
 
         let buf_bytes = buf.as_bytes();
@@ -100,39 +100,77 @@ impl BufferWriter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Writer {
     buffer_writer: BufferWriter,
 }
 
 impl Writer {
+    pub fn builder() -> WriterBuilder {
+        WriterBuilder::new()
+    }
+
+    pub fn stdout(&self) -> bool {
+        matches!(self.buffer_writer.output, Output::Stdout)
+    }
+
+    pub fn stderr(&self) -> bool {
+        matches!(self.buffer_writer.output, Output::Stderr)
+    }
+
+    pub fn file(&self) -> Option<&str> {
+        match &self.buffer_writer.output {
+            Output::File(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub fn color_style(&self) -> ColorStyle {
+        self.buffer_writer.color_style
+    }
+
+    pub fn buffer(&self) -> Buffer {
+        self.buffer_writer.buffer()
+    }
+
+    pub fn print_out(&self, buf: &Buffer) -> std::io::Result<()> {
+        self.buffer_writer.write_buffer(buf)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct WriterBuilder {
+    writer: Writer,
+}
+
+impl WriterBuilder {
     pub fn new() -> Self {
         Self {
-            buffer_writer: BufferWriter::default(),
+            writer: Writer::default(),
         }
     }
 
     pub fn stdout(mut self) -> Self {
-        self.buffer_writer.output = Output::Stdout;
+        self.writer.buffer_writer.output = Output::Stdout;
         self
     }
 
     pub fn stderr(mut self) -> Self {
-        self.buffer_writer.output = Output::Stderr;
+        self.writer.buffer_writer.output = Output::Stderr;
         self
     }
 
     pub fn file(mut self, path: impl Into<String>) -> Self {
-        self.buffer_writer.output = Output::File(path.into());
+        self.writer.buffer_writer.output = Output::File(path.into());
         self
     }
 
-    pub fn color(mut self, color_style: ColorStyle) -> Self {
-        self.buffer_writer.color_style = color_style;
+    pub fn color_style(mut self, color_style: ColorStyle) -> Self {
+        self.writer.buffer_writer.color_style = color_style;
         self
     }
 
-    pub fn build(self) -> BufferWriter {
-        self.buffer_writer
+    pub fn build(self) -> Writer {
+        self.writer
     }
 }
