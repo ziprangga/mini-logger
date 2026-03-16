@@ -1,4 +1,5 @@
 use mini_logger::*;
+mod try_module;
 
 fn main() {
     // // Initialize the global logger
@@ -13,10 +14,12 @@ fn main() {
 
     //You can also test with the builder
     mini_logger::Builder::new()
-        .filter_level(Level::Info)
+        .filter_level(Level::Debug)
         .default_format()
         .output_stdout()
         .init();
 
     info!("Another info after builder init");
+
+    try_module::run()
 }

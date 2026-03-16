@@ -134,7 +134,7 @@ impl Default for FormatConfig {
         Self {
             timestamp: Some(TimestampPrecision::default()),
             level: true,
-            target: true,
+            target: false,
             module_path: true,
         }
     }
@@ -256,6 +256,6 @@ impl FormatWriter<'_> {
     }
 
     fn write_args(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
-        write!(self.buf, "{}", record_msg.msg())
+        write!(self.buf, "{}\n", record_msg.msg())
     }
 }
