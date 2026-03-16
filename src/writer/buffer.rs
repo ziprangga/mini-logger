@@ -141,36 +141,81 @@ impl Writer {
 #[derive(Debug, Default)]
 pub struct WriterBuilder {
     writer: Writer,
+    built: bool,
 }
 
 impl WriterBuilder {
     pub fn new() -> Self {
         Self {
             writer: Writer::default(),
+            built: false,
         }
     }
 
-    pub fn stdout(mut self) -> Self {
+    pub fn output(&mut self, output: Output) -> &mut Self {
+        self.writer.buffer_writer.output = output;
+        self
+    }
+
+    pub fn stdout(&mut self) -> &mut Self {
         self.writer.buffer_writer.output = Output::Stdout;
         self
     }
 
-    pub fn stderr(mut self) -> Self {
+    pub fn stderr(&mut self) -> &mut Self {
         self.writer.buffer_writer.output = Output::Stderr;
         self
     }
 
-    pub fn file(mut self, path: impl Into<String>) -> Self {
+    pub fn file(&mut self, path: impl Into<String>) -> &mut Self {
         self.writer.buffer_writer.output = Output::File(path.into());
         self
     }
 
-    pub fn color_style(mut self, color_style: ColorStyle) -> Self {
+    pub fn color_style(&mut self, color_style: ColorStyle) -> &mut Self {
         self.writer.buffer_writer.color_style = color_style;
         self
     }
 
-    pub fn build(self) -> Writer {
-        self.writer
+    pub fn build(&mut self) -> Writer {
+        // self.writer
+        assert!(!self.built, "attempt to re-use consumed writer builder");
+        self.built = true;
+
+        let color = self.writer.color_style();
+
+        use std::io::IsTerminal;
+
+        let color_choice = if color == ColorStyle::Auto {
+            match &self.writer.buffer_writer.output {
+                Output::Stdout => {
+                    if std::io::stdout().is_terminal() {
+                        ColorStyle::Always
+                    } else {
+                        ColorStyle::Never
+                    }
+                }
+                Output::Stderr => {
+                    if std::io::stderr().is_terminal() {
+                        ColorStyle::Always
+                    } else {
+                        ColorStyle::Never
+                    }
+                }
+                Output::File(_) => ColorStyle::Never,
+            }
+        } else {
+            color
+        };
+
+        let writer = match std::mem::take(&mut self.writer.buffer_writer.output) {
+            Output::Stdout => BufferWriter::stdout(color_choice),
+            Output::Stderr => BufferWriter::stderr(color_choice),
+            Output::File(string) => BufferWriter::file(string, color_choice),
+        };
+
+        Writer {
+            buffer_writer: writer,
+        }
     }
 }

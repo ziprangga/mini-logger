@@ -1,210 +1,268 @@
-use crate::format::Formatter;
-use crate::style::TimestampPrecision;
-use std::io::{self, Write};
-
-/// Configuration for how to format log records
-pub struct ConfigFormat {
-    pub timestamp: Option<TimestampPrecision>,
-    pub level: bool,
-    pub module_path: bool,
-    pub target: bool,
-    pub source_file: bool,
-    pub source_line_number: bool,
-    pub indent: Option<usize>,
-    pub suffix: &'static str,
-}
-
-// impl ConfigFormat {
-//     pub fn format(
-//         &self,
-//         formatter: &mut Formatter,
-//         log_message: &LogMessage<'_>,
-//     ) -> io::Result<()> {
-//         let fmt = ConfigFormatWriter {
-//             config: self,
-//             buf: formatter,
-//             written_header: false,
-//         };
-
-//         fmt.write(record)
-//     }
+// #[derive(Default)]
+// pub struct Builder {
+//     filter: env_filter::Builder,
+//     writer: writer::Builder,
+//     format: fmt::Builder,
+//     built: bool,
 // }
 
-impl Default for ConfigFormat {
-    fn default() -> Self {
-        Self {
-            timestamp: Some(TimestampPrecision::Seconds),
-            level: true,
-            module_path: false,
-            target: true,
-            source_file: false,
-            source_line_number: false,
-            indent: Some(4),
-            suffix: "\n",
-        }
-    }
-}
+// impl Builder {
+//     /// Initializes the log builder with defaults.
+//     ///
+//     /// **NOTE:** This method won't read from any environment variables.
+//     /// Use the [`filter`] and [`write_style`] methods to configure the builder
+//     /// or use [`from_env`] or [`from_default_env`] instead.
+//     ///
+//     /// # Examples
+//     ///
+//     /// Create a new builder and configure filters and style:
+//     ///
+//     /// ```
+//     /// use log::LevelFilter;
+//     /// use env_logger::{Builder, WriteStyle};
+//     ///
+//     /// let mut builder = Builder::new();
+//     ///
+//     /// builder
+//     ///     .filter(None, LevelFilter::Info)
+//     ///     .write_style(WriteStyle::Always)
+//     ///     .init();
+//     /// ```
+//     ///
+//     /// [`filter`]: #method.filter
+//     /// [`write_style`]: #method.write_style
+//     /// [`from_env`]: #method.from_env
+//     /// [`from_default_env`]: #method.from_default_env
+//     pub fn new() -> Builder {
+//         Default::default()
+//     }
 
-/// Writer for a record using a given config and formatter
-pub struct ConfigFormatWriter<'a> {
-    pub config: &'a ConfigFormat,
-    pub buf: &'a mut Formatter,
-    written_header: bool,
-}
+//     /// Initializes the log builder from the environment.
+//     ///
+//     /// The variables used to read configuration from can be tweaked before
+//     /// passing in.
+//     ///
+//     /// # Examples
+//     ///
+//     /// Initialise a logger reading the log filter from an environment variable
+//     /// called `MY_LOG`:
+//     ///
+//     /// ```
+//     /// use env_logger::Builder;
+//     ///
+//     /// let mut builder = Builder::from_env("MY_LOG");
+//     /// builder.init();
+//     /// ```
+//     ///
+//     /// Initialise a logger using the `MY_LOG` variable for filtering and
+//     /// `MY_LOG_STYLE` for whether or not to write styles:
+//     ///
+//     /// ```
+//     /// use env_logger::{Builder, Env};
+//     ///
+//     /// let env = Env::new().filter("MY_LOG").write_style("MY_LOG_STYLE");
+//     ///
+//     /// let mut builder = Builder::from_env(env);
+//     /// builder.init();
+//     /// ```
+//     pub fn from_env<'a, E>(env: E) -> Self
+//     where
+//         E: Into<Env<'a>>,
+//     {
+//         let mut builder = Builder::new();
+//         builder.parse_env(env);
+//         builder
+//     }
 
-impl<'a> ConfigFormatWriter<'a> {
-    pub fn new(config: &'a ConfigFormat, buf: &'a mut Formatter) -> Self {
-        Self {
-            config,
-            buf,
-            written_header: false,
-        }
-    }
+//     /// Applies the configuration from the environment.
+//     ///
+//     /// This function allows a builder to be configured with default parameters,
+//     /// to be then overridden by the environment.
+//     ///
+//     /// # Examples
+//     ///
+//     /// Initialise a logger with filter level `Off`, then override the log
+//     /// filter from an environment variable called `MY_LOG`:
+//     ///
+//     /// ```
+//     /// use log::LevelFilter;
+//     /// use env_logger::Builder;
+//     ///
+//     /// let mut builder = Builder::new();
+//     ///
+//     /// builder.filter_level(LevelFilter::Off);
+//     /// builder.parse_env("MY_LOG");
+//     /// builder.init();
+//     /// ```
+//     ///
+//     /// Initialise a logger with filter level `Off`, then use the `MY_LOG`
+//     /// variable to override filtering and `MY_LOG_STYLE` to override  whether
+//     /// or not to write styles:
+//     ///
+//     /// ```
+//     /// use log::LevelFilter;
+//     /// use env_logger::{Builder, Env};
+//     ///
+//     /// let env = Env::new().filter("MY_LOG").write_style("MY_LOG_STYLE");
+//     ///
+//     /// let mut builder = Builder::new();
+//     /// builder.filter_level(LevelFilter::Off);
+//     /// builder.parse_env(env);
+//     /// builder.init();
+//     /// ```
+//     pub fn parse_env<'a, E>(&mut self, env: E) -> &mut Self
+//     where
+//         E: Into<Env<'a>>,
+//     {
+//         let env = env.into();
 
-    fn write_header_value<T: std::fmt::Display>(&mut self, value: T) -> std::io::Result<()> {
-        if !self.written_header {
-            self.written_header = true;
-            write!(self.buf, "[{}", value)
-        } else {
-            write!(self.buf, " {}", value)
-        }
-    }
+//         if let Some(s) = env.get_filter() {
+//             self.parse_filters(&s);
+//         }
 
-    fn finish_header(&mut self) -> io::Result<()> {
-        if self.written_header {
-            write!(self.buf, "] ")?;
-        }
-        Ok(())
-    }
+//         if let Some(s) = env.get_write_style() {
+//             self.parse_write_style(&s);
+//         }
 
-    pub fn write_record(
-        &mut self,
-        level: Option<&str>,
-        module_path: Option<&str>,
-        target: Option<&str>,
-        file: Option<&str>,
-        line: Option<u32>,
-        message: &str,
-    ) -> io::Result<()> {
-        // Timestamp
-        if let Some(ts) = self.config.timestamp {
-            let timestamp = self.buf.timestamp(ts);
-            self.write_header_value(timestamp)?;
-        }
+//         self
+//     }
 
-        // Level
-        if self.config.level {
-            if let Some(level) = level {
-                self.write_header_value(level)?;
-            }
-        }
+//     /// Initializes the log builder from the environment using default variable names.
+//     ///
+//     /// This method is a convenient way to call `from_env(Env::default())` without
+//     /// having to use the `Env` type explicitly. The builder will use the
+//     /// [default environment variables].
+//     ///
+//     /// # Examples
+//     ///
+//     /// Initialise a logger using the default environment variables:
+//     ///
+//     /// ```
+//     /// use env_logger::Builder;
+//     ///
+//     /// let mut builder = Builder::from_default_env();
+//     /// builder.init();
+//     /// ```
+//     ///
+//     /// [default environment variables]: struct.Env.html#default-environment-variables
+//     pub fn from_default_env() -> Self {
+//         Self::from_env(Env::default())
+//     }
 
-        // Module path
-        if self.config.module_path {
-            if let Some(module_path) = module_path {
-                self.write_header_value(module_path)?;
-            }
-        }
+//     /// Applies the configuration from the environment using default variable names.
+//     ///
+//     /// This method is a convenient way to call `parse_env(Env::default())` without
+//     /// having to use the `Env` type explicitly. The builder will use the
+//     /// [default environment variables].
+//     ///
+//     /// # Examples
+//     ///
+//     /// Initialise a logger with filter level `Off`, then configure it using the
+//     /// default environment variables:
+//     ///
+//     /// ```
+//     /// use log::LevelFilter;
+//     /// use env_logger::Builder;
+//     ///
+//     /// let mut builder = Builder::new();
+//     /// builder.filter_level(LevelFilter::Off);
+//     /// builder.parse_default_env();
+//     /// builder.init();
+//     /// ```
+//     ///
+//     /// [default environment variables]: struct.Env.html#default-environment-variables
+//     pub fn parse_default_env(&mut self) -> &mut Self {
+//         self.parse_env(Env::default())
+//     }
 
-        // Source file + line
-        if self.config.source_file {
-            if let Some(file) = file {
-                let value = if self.config.source_line_number {
-                    match line {
-                        Some(line) => format!("{file}:{line}"),
-                        None => file.to_string(),
-                    }
-                } else {
-                    file.to_string()
-                };
-                self.write_header_value(value)?;
-            }
-        }
+//     pub struct Logger {
+//         writer: Writer,
+//         filter: env_filter::Filter,
+//         format: FormatFn,
+//     }
 
-        // Target
-        if self.config.target {
-            if let Some(target) = target {
-                if !target.is_empty() {
-                    self.write_header_value(target)?;
-                }
-            }
-        }
+//     impl Logger {
+//         /// Creates the logger from the environment.
+//         ///
+//         /// The variables used to read configuration from can be tweaked before
+//         /// passing in.
+//         ///
+//         /// # Examples
+//         ///
+//         /// Create a logger reading the log filter from an environment variable
+//         /// called `MY_LOG`:
+//         ///
+//         /// ```
+//         /// use env_logger::Logger;
+//         ///
+//         /// let logger = Logger::from_env("MY_LOG");
+//         /// ```
+//         ///
+//         /// Create a logger using the `MY_LOG` variable for filtering and
+//         /// `MY_LOG_STYLE` for whether or not to write styles:
+//         ///
+//         /// ```
+//         /// use env_logger::{Logger, Env};
+//         ///
+//         /// let env = Env::new().filter_or("MY_LOG", "info").write_style_or("MY_LOG_STYLE", "always");
+//         ///
+//         /// let logger = Logger::from_env(env);
+//         /// ```
+//         pub fn from_env<'a, E>(env: E) -> Self
+//         where
+//             E: Into<Env<'a>>,
+//         {
+//             Builder::from_env(env).build()
+//         }
 
-        // Finish header
-        self.finish_header()?;
+//         /// Creates the logger from the environment using default variable names.
+//         ///
+//         /// This method is a convenient way to call `from_env(Env::default())` without
+//         /// having to use the `Env` type explicitly. The logger will use the
+//         /// [default environment variables].
+//         ///
+//         /// # Examples
+//         ///
+//         /// Creates a logger using the default environment variables:
+//         ///
+//         /// ```
+//         /// use env_logger::Logger;
+//         ///
+//         /// let logger = Logger::from_default_env();
+//         /// ```
+//         ///
+//         /// [default environment variables]: struct.Env.html#default-environment-variables
+//         pub fn from_default_env() -> Self {
+//             Builder::from_default_env().build()
+//         }
 
-        // Message with indent
-        if let Some(indent) = self.config.indent {
-            for (i, line) in message.lines().enumerate() {
-                if i > 0 {
-                    write!(self.buf, "{}{}", self.config.suffix, " ".repeat(indent))?;
-                }
-                write!(self.buf, "{}", line)?;
-            }
-        } else {
-            write!(self.buf, "{}", message)?;
-        }
+//         // filter.rs
+//         use std::env;
 
-        // Suffix
-        write!(self.buf, "{}", self.config.suffix)?;
+//         impl FilterBuilder {
+//             /// Parse filter directives from an environment variable.
+//             pub fn parse_env_var(&mut self, var_name: &str) -> &mut Self {
+//                 if let Ok(env_val) = env::var(var_name) {
+//                     self.parse_filter_string(&env_val);
+//                 }
+//                 self
+//             }
 
-        Ok(())
-    }
-}
+//             /// Parse a filter string like "module1=info,module2=warn"
+//             pub fn parse_filter_string(&mut self, s: &str) -> &mut Self {
+//                 for directive in s.split(',') {
+//                     let mut parts = directive.split('=');
+//                     let module = parts.next().unwrap_or("").trim();
+//                     let level_str = parts.next().unwrap_or("off").trim();
 
-/// Optional builder to simplify setting up ConfigFormat
-pub struct FormatBuilder {
-    config: ConfigFormat,
-}
+//                     let level = level_str.parse::<Level>().unwrap_or(Level::Off);
 
-impl FormatBuilder {
-    pub fn new() -> Self {
-        Self {
-            config: ConfigFormat::default(),
-        }
-    }
-
-    pub fn timestamp(mut self, precision: Option<TimestampPrecision>) -> Self {
-        self.config.timestamp = precision;
-        self
-    }
-
-    pub fn level(mut self, enabled: bool) -> Self {
-        self.config.level = enabled;
-        self
-    }
-
-    pub fn module_path(mut self, enabled: bool) -> Self {
-        self.config.module_path = enabled;
-        self
-    }
-
-    pub fn target(mut self, enabled: bool) -> Self {
-        self.config.target = enabled;
-        self
-    }
-
-    pub fn file(mut self, enabled: bool) -> Self {
-        self.config.source_file = enabled;
-        self
-    }
-
-    pub fn line_number(mut self, enabled: bool) -> Self {
-        self.config.source_line_number = enabled;
-        self
-    }
-
-    pub fn indent(mut self, spaces: Option<usize>) -> Self {
-        self.config.indent = spaces;
-        self
-    }
-
-    pub fn suffix(mut self, suffix: &'static str) -> Self {
-        self.config.suffix = suffix;
-        self
-    }
-
-    pub fn build(self) -> ConfigFormat {
-        self.config
-    }
-}
+//                     if module.is_empty() {
+//                         self.filter_level(level);
+//                     } else {
+//                         self.filter_module(module, level);
+//                     }
+//                 }
+//                 self
+//             }
+//         }

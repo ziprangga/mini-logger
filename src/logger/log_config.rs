@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Trace as usize);
+static LOG_LEVEL: AtomicUsize = AtomicUsize::new(Level::Off as usize);
 
 #[repr(usize)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -122,3 +122,15 @@ impl Default for LogConfigBuilder<'_> {
         Self::new()
     }
 }
+
+// #[derive(Debug)]
+// pub struct SetLogError(());
+
+// impl std::fmt::Display for SetLogError {
+//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+//         fmt.write_str(
+//             "attempted to set a logger after the logging system \
+//                                          was already initialized",
+//         )
+//     }
+// }

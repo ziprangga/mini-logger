@@ -76,14 +76,29 @@ pub type FormatFn = Box<dyn FormatRecord + Sync + Send>;
 pub struct FormatBuilder {
     format_default: FormatConfig,
     format_custom: Option<FormatFn>,
+    built: bool,
 }
 
 impl FormatBuilder {
-    pub fn build(self) -> FormatFn {
-        if let Some(fmt) = self.format_custom {
+    pub fn build(&mut self) -> FormatFn {
+        // if let Some(fmt) = self.format_custom {
+        //     fmt
+        // } else {
+        //     Box::new(self.format_default)
+        // }
+
+        assert!(!self.built, "attempt to re-use consumed format builder");
+        let built = std::mem::replace(
+            self,
+            FormatBuilder {
+                built: true,
+                ..Default::default()
+            },
+        );
+        if let Some(fmt) = built.format_custom {
             fmt
         } else {
-            Box::new(self.format_default)
+            Box::new(built.format_default)
         }
     }
 }
