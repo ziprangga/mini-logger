@@ -1,9 +1,9 @@
-use crate::logger::{Level, LogConfig, LogMessage};
+use crate::logger::{LogConfig, LogLevel, LogMessage};
 
 #[derive(Clone, Debug)]
 pub struct Directive {
     name: Option<String>,
-    level: Level,
+    level: LogLevel,
 }
 
 #[derive(Clone, Debug)]
@@ -20,12 +20,12 @@ impl Filter {
         }
     }
 
-    pub fn filter(&self) -> Level {
+    pub fn filter(&self) -> LogLevel {
         self.directives
             .iter()
             .map(|d| d.level)
             .max()
-            .unwrap_or(Level::Off)
+            .unwrap_or(LogLevel::Off)
     }
 
     pub fn is_match(&self, s: &str) -> bool {
@@ -48,7 +48,7 @@ impl Filter {
     }
 
     pub fn enabled(&self, config: &LogConfig<'_>) -> bool {
-        let mut level = Level::Off;
+        let mut level = LogLevel::Off;
 
         for d in &self.directives {
             match &d.name {
@@ -94,7 +94,7 @@ impl FilterBuilder {
         }
     }
 
-    pub fn filter(&mut self, module: Option<&str>, level: Level) -> &mut Self {
+    pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
         self.insert_filter(Directive {
             name: module.map(|s| s.to_owned()),
             level,
@@ -102,11 +102,11 @@ impl FilterBuilder {
         self
     }
 
-    pub fn filter_module(&mut self, module: &str, level: Level) -> &mut Self {
+    pub fn filter_module(&mut self, module: &str, level: LogLevel) -> &mut Self {
         self.filter(Some(module), level)
     }
 
-    pub fn filter_level(&mut self, level: Level) -> &mut Self {
+    pub fn filter_level(&mut self, level: LogLevel) -> &mut Self {
         self.filter(None, level)
     }
 
@@ -124,7 +124,7 @@ impl FilterBuilder {
         if self.filter.directives.is_empty() {
             filter_directive.push(Directive {
                 name: None,
-                level: Level::Error,
+                level: LogLevel::Error,
             });
         } else {
             filter_directive = std::mem::take(&mut self.filter.directives);
@@ -181,7 +181,7 @@ impl<'a> FilterEnv<'a> {
                 None => ("", first),       // bare level → global
             };
 
-            let level = level_str.parse::<Level>().unwrap_or(Level::Off);
+            let level = level_str.parse::<LogLevel>().unwrap_or(LogLevel::Off);
 
             if module.is_empty() {
                 self.builder.filter_level(level);

@@ -59,7 +59,7 @@ impl Builder {
         self
     }
 
-    pub fn filter(&mut self, module: Option<&str>, level: Level) -> &mut Self {
+    pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
         self.filter.filter(module, level);
         self
     }
@@ -110,7 +110,7 @@ impl Builder {
         let result = set_logger(logger);
 
         if result.is_ok() {
-            Level::set_level(max_level);
+            LogLevel::set_level(max_level);
         }
 
         result
@@ -147,7 +147,7 @@ impl Logger {
         get_logger()
     }
 
-    pub fn filter(&self) -> Level {
+    pub fn filter(&self) -> LogLevel {
         self.filter.filter()
     }
 
@@ -226,7 +226,7 @@ macro_rules! log {
     // logger + target
     (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
         let lvl = $lvl;
-        if lvl as usize <= $crate::Level::get_level() as usize {
+        if lvl as usize <= $crate::LogLevel::get_level() as usize {
             let msg = $crate::LogMessage::builder()
                 .level(lvl)
                 .target($target)
@@ -254,12 +254,12 @@ macro_rules! log {
 
 // Level-specific macros
 #[macro_export]
-macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::Level::Error, $($arg)+) }; }
+macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Error, $($arg)+) }; }
 #[macro_export]
-macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::Level::Warn, $($arg)+) }; }
+macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Warn, $($arg)+) }; }
 #[macro_export]
-macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::Level::Info, $($arg)+) }; }
+macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Info, $($arg)+) }; }
 #[macro_export]
-macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::Level::Debug, $($arg)+) }; }
+macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Debug, $($arg)+) }; }
 #[macro_export]
-macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::Level::Trace, $($arg)+) }; }
+macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Trace, $($arg)+) }; }

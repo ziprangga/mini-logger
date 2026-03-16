@@ -1,4 +1,4 @@
-use super::{Level, LogConfig};
+use super::{LogConfig, LogLevel};
 
 #[derive(Clone, Debug)]
 pub struct LogMessage<'a> {
@@ -19,7 +19,7 @@ impl<'a> LogMessage<'a> {
     }
 
     #[inline]
-    pub fn level(&self) -> Level {
+    pub fn level(&self) -> LogLevel {
         self.log_config.level()
     }
 
@@ -69,7 +69,7 @@ impl<'a> LogMessageBuilder<'a> {
     }
 
     #[inline]
-    pub fn level(&mut self, level: Level) -> &mut Self {
+    pub fn level(&mut self, level: LogLevel) -> &mut Self {
         let target = self.log_message.log_config.target();
 
         self.log_message.log_config = LogConfig::builder().level(level).target(target).build();

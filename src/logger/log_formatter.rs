@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 // use std::time::SystemTime;
 
-use crate::logger::log_config::Level;
+use crate::logger::log_config::LogLevel;
 use crate::logger::log_message::LogMessage;
 use crate::style::{ColorStyle, Timestamp, TimestampPrecision};
 use crate::writer::{Buffer, Writer};
@@ -209,12 +209,12 @@ impl FormatWriter<'_> {
 
         use crate::style::Color;
         let (level_str, color) = match record_msg.level() {
-            Level::Off => ("OFF", Color::Reset),
-            Level::Error => ("ERROR", Color::Red),
-            Level::Warn => ("WARN", Color::Yellow),
-            Level::Info => ("INFO", Color::Green),
-            Level::Debug => ("DEBUG", Color::Blue),
-            Level::Trace => ("TRACE", Color::Blue),
+            LogLevel::Off => ("OFF", Color::Reset),
+            LogLevel::Error => ("ERROR", Color::Red),
+            LogLevel::Warn => ("WARN", Color::Yellow),
+            LogLevel::Info => ("INFO", Color::Green),
+            LogLevel::Debug => ("DEBUG", Color::Blue),
+            LogLevel::Trace => ("TRACE", Color::Blue),
         };
         self.write_header_value(format_args!(
             "{}{:<5}{}",
