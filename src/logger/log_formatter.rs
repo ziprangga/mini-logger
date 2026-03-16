@@ -70,17 +70,17 @@ where
     }
 }
 
-pub type FormatFn = Box<dyn FormatRecord + Sync + Send>;
+pub type LogFormat = Box<dyn FormatRecord + Sync + Send>;
 
 #[derive(Default)]
 pub struct FormatBuilder {
     format_default: FormatConfig,
-    format_custom: Option<FormatFn>,
+    format_custom: Option<LogFormat>,
     built: bool,
 }
 
 impl FormatBuilder {
-    pub fn build(&mut self) -> FormatFn {
+    pub fn build(&mut self) -> LogFormat {
         // if let Some(fmt) = self.format_custom {
         //     fmt
         // } else {

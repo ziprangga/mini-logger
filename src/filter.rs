@@ -1,8 +1,8 @@
-use crate::logger::{LogConfig, LogLevel, LogMessage};
+use crate::logger::{LogLevel, LogMessage};
 
 #[derive(Clone, Debug)]
 pub struct Directive {
-    name: Option<String>,
+    target: Option<String>,
     level: LogLevel,
 }
 
@@ -36,7 +36,7 @@ impl Filter {
     }
 
     pub fn matches(&self, record_msg: &LogMessage<'_>) -> bool {
-        if !self.enabled(record_msg.log_config()) {
+        if !self.enabled(record_msg.target(), &record_msg.level()) {
             return false;
         }
 
@@ -47,13 +47,13 @@ impl Filter {
         true
     }
 
-    pub fn enabled(&self, config: &LogConfig<'_>) -> bool {
+    pub fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
         let mut level = LogLevel::Off;
 
         for d in &self.directives {
-            match &d.name {
+            match &d.target {
                 Some(name) => {
-                    if config.target().starts_with(name) {
+                    if target.starts_with(name) {
                         level = d.level;
                     }
                 }
@@ -63,7 +63,7 @@ impl Filter {
             }
         }
 
-        config.level() <= level
+        *log_level <= level
     }
 }
 
@@ -86,7 +86,7 @@ impl FilterBuilder {
             .filter
             .directives
             .iter()
-            .position(|d| d.name == directive.name)
+            .position(|d| d.target == directive.target)
         {
             std::mem::swap(&mut self.filter.directives[pos], &mut directive);
         } else {
@@ -96,7 +96,7 @@ impl FilterBuilder {
 
     pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
         self.insert_filter(Directive {
-            name: module.map(|s| s.to_owned()),
+            target: module.map(|s| s.to_owned()),
             level,
         });
         self
@@ -123,14 +123,14 @@ impl FilterBuilder {
         let mut filter_directive = Vec::new();
         if self.filter.directives.is_empty() {
             filter_directive.push(Directive {
-                name: None,
+                target: None,
                 level: LogLevel::Error,
             });
         } else {
             filter_directive = std::mem::take(&mut self.filter.directives);
             filter_directive.sort_by(|a, b| {
-                let alen = a.name.as_ref().map(|a| a.len()).unwrap_or(0);
-                let blen = b.name.as_ref().map(|b| b.len()).unwrap_or(0);
+                let alen = a.target.as_ref().map(|a| a.len()).unwrap_or(0);
+                let blen = b.target.as_ref().map(|b| b.len()).unwrap_or(0);
                 alen.cmp(&blen)
             });
         }

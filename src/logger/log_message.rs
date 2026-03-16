@@ -1,8 +1,9 @@
-use super::{LogConfig, LogLevel};
+use super::LogLevel;
 
 #[derive(Clone, Debug)]
 pub struct LogMessage<'a> {
-    log_config: LogConfig<'a>,
+    level: LogLevel,
+    target: &'a str,
     module: Option<&'a str>,
     msg: std::fmt::Arguments<'a>,
 }
@@ -13,19 +14,19 @@ impl<'a> LogMessage<'a> {
         LogMessageBuilder::new()
     }
 
-    #[inline]
-    pub fn log_config(&self) -> &LogConfig<'a> {
-        &self.log_config
-    }
+    // #[inline]
+    // pub fn log_config(&self) -> &LogConfig<'a> {
+    //     &self.log_config
+    // }
 
     #[inline]
     pub fn level(&self) -> LogLevel {
-        self.log_config.level()
+        self.level
     }
 
     #[inline]
     pub fn target(&self) -> &'a str {
-        self.log_config.target()
+        self.target
     }
 
     #[inline]
@@ -42,7 +43,8 @@ impl<'a> LogMessage<'a> {
 impl Default for LogMessage<'_> {
     fn default() -> Self {
         Self {
-            log_config: LogConfig::builder().build(),
+            level: LogLevel::default(),
+            target: "",
             module: None,
             msg: format_args!(""),
         }
@@ -62,26 +64,23 @@ impl<'a> LogMessageBuilder<'a> {
         }
     }
 
-    #[inline]
-    pub fn log_config(&mut self, log_config: LogConfig<'a>) -> &mut Self {
-        self.log_message.log_config = log_config;
-        self
-    }
+    // #[inline]
+    // pub fn log_config(&mut self, log_config: LogConfig<'a>) -> &mut Self {
+    //     self.log_message.log_config = log_config;
+    //     self
+    // }
 
     #[inline]
     pub fn level(&mut self, level: LogLevel) -> &mut Self {
-        let target = self.log_message.log_config.target();
-
-        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
-
+        // let target = self.log_message.log_config.target();
+        // self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
+        self.log_message.level = level;
         self
     }
 
     #[inline]
     pub fn target(&mut self, target: &'a str) -> &mut Self {
-        let level = self.log_message.log_config.level();
-
-        self.log_message.log_config = LogConfig::builder().level(level).target(target).build();
+        self.log_message.target = target;
         self
     }
 
