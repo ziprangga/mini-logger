@@ -1,5 +1,53 @@
 use super::LogLevel;
 
+// pub trait MessageRecord {
+//     fn build_message(&self) -> LogMessage<'static>;
+// }
+
+// impl<F> MessageRecord for F
+// where
+//     F: Fn() -> LogMessage<'static> + Sync + Send,
+// {
+//     fn build_message(&self) -> LogMessage<'static> {
+//         (self)()
+//     }
+// }
+
+// pub type MessageLog = Box<dyn MessageRecord + Sync + Send>;
+
+// #[derive(Default)]
+// pub struct MessageBuilder {
+//     default: LogMessage<'static>,
+//     custom: Option<MessageLog>,
+//     built: bool,
+// }
+
+// impl MessageBuilder {
+//     pub fn new(default: LogMessage<'static>) -> Self {
+//         Self {
+//             default,
+//             custom: None,
+//             built: false,
+//         }
+//     }
+
+//     pub fn custom(&mut self, custom: MessageLog) -> &mut Self {
+//         self.custom = Some(custom);
+//         self
+//     }
+
+//     pub fn build(&mut self) -> LogMessage<'static> {
+//         assert!(!self.built, "attempt to re-use consumed message builder");
+//         self.built = true;
+
+//         if let Some(custom) = self.custom.take() {
+//             custom.build_message()
+//         } else {
+//             self.default.clone()
+//         }
+//     }
+// }
+
 #[derive(Clone, Debug)]
 pub struct LogMessage<'a> {
     level: LogLevel,

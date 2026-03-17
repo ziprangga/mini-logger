@@ -1,27 +1,27 @@
 use crate::logger::{LogLevel, LogMessage};
 
 #[derive(Clone, Debug)]
-pub struct Directive {
+pub struct FilterTarget {
     target: Option<String>,
     level: LogLevel,
 }
 
 #[derive(Clone, Debug)]
 pub struct Filter {
-    directives: Vec<Directive>,
+    filter_target: Vec<FilterTarget>,
     filter_string: Option<String>,
 }
 
 impl Filter {
     pub fn new() -> Self {
         Self {
-            directives: Vec::new(),
+            filter_target: Vec::new(),
             filter_string: None,
         }
     }
 
     pub fn filter(&self) -> LogLevel {
-        self.directives
+        self.filter_target
             .iter()
             .map(|d| d.level)
             .max()
@@ -50,7 +50,7 @@ impl Filter {
     pub fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
         let mut level = LogLevel::Off;
 
-        for d in &self.directives {
+        for d in &self.filter_target {
             match &d.target {
                 Some(name) => {
                     if target.starts_with(name) {
@@ -81,21 +81,21 @@ impl FilterBuilder {
         }
     }
 
-    fn insert_filter(&mut self, mut directive: Directive) {
+    fn insert_filter(&mut self, mut filter_target: FilterTarget) {
         if let Some(pos) = self
             .filter
-            .directives
+            .filter_target
             .iter()
-            .position(|d| d.target == directive.target)
+            .position(|d| d.target == filter_target.target)
         {
-            std::mem::swap(&mut self.filter.directives[pos], &mut directive);
+            std::mem::swap(&mut self.filter.filter_target[pos], &mut filter_target);
         } else {
-            self.filter.directives.push(directive);
+            self.filter.filter_target.push(filter_target);
         }
     }
 
     pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
-        self.insert_filter(Directive {
+        self.insert_filter(FilterTarget {
             target: module.map(|s| s.to_owned()),
             level,
         });
@@ -120,15 +120,15 @@ impl FilterBuilder {
         assert!(!self.built, "attempt to re-use consumed filter builder");
         self.built = true;
 
-        let mut filter_directive = Vec::new();
-        if self.filter.directives.is_empty() {
-            filter_directive.push(Directive {
+        let mut filter_target = Vec::new();
+        if self.filter.filter_target.is_empty() {
+            filter_target.push(FilterTarget {
                 target: None,
                 level: LogLevel::Error,
             });
         } else {
-            filter_directive = std::mem::take(&mut self.filter.directives);
-            filter_directive.sort_by(|a, b| {
+            filter_target = std::mem::take(&mut self.filter.filter_target);
+            filter_target.sort_by(|a, b| {
                 let alen = a.target.as_ref().map(|a| a.len()).unwrap_or(0);
                 let blen = b.target.as_ref().map(|b| b.len()).unwrap_or(0);
                 alen.cmp(&blen)
@@ -136,7 +136,7 @@ impl FilterBuilder {
         }
 
         Filter {
-            directives: std::mem::take(&mut filter_directive),
+            filter_target: std::mem::take(&mut filter_target),
             filter_string: std::mem::take(&mut self.filter.filter_string),
         }
     }
@@ -177,8 +177,10 @@ impl<'a> FilterEnv<'a> {
             let second = parts.next().map(|s| s.trim());
 
             let (module, level_str) = match second {
-                Some(lvl) => (first, lvl), // module=level
-                None => ("", first),       // bare level → global
+                // module=level
+                Some(lvl) => (first, lvl),
+                // bare level → global
+                None => ("", first),
             };
 
             let level = level_str.parse::<LogLevel>().unwrap_or(LogLevel::Off);
