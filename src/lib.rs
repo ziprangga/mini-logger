@@ -190,19 +190,41 @@ impl Logger {
 // MACRO
 //=================
 
+fn log_reduce_size(
+    logger: &Logger,
+    level: LogLevel,
+    target: &str,
+    module: &'static str,
+    msg: std::fmt::Arguments,
+) {
+    let mut builder = LogMessage::builder();
+
+    builder
+        .level(level)
+        .target(target)
+        .module(Some(module))
+        .msg(msg);
+
+    logger.log_msg(&builder.build());
+}
+
+pub fn log_build<'a>(
+    logger: &Logger,
+    level: LogLevel,
+    target: &str,
+    module: &'static str,
+    msg: std::fmt::Arguments,
+) {
+    log_reduce_size(logger, level, target, module, msg)
+}
+
 #[macro_export]
 macro_rules! log {
     // logger + target
     (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
         let lvl = $lvl;
         if lvl as usize <= $crate::LogLevel::get_level() as usize {
-            let msg = $crate::LogMessage::builder()
-                .level(lvl)
-                .target($target)
-                .module(Some(module_path!()))
-                .msg(format_args!($($arg)+))
-                .build();
-            $logger.log_msg(&msg);
+            $crate::log_build($logger, lvl, $target, module_path!(), format_args!($($arg)+));
         }
     }};
     // logger only
