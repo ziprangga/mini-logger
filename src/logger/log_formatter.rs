@@ -8,6 +8,23 @@ use crate::logger::log_message::LogMessage;
 use crate::style::{ColorStyle, Timestamp, TimestampPrecision};
 use crate::writer::{Buffer, Writer};
 
+thread_local! {
+    static LOG_FORMATTER: RefCell<Option<LogFormatter>> = const {RefCell::new(None)};
+}
+
+pub fn try_with_log_formatter_slot<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut Option<LogFormatter>) -> R,
+{
+    LOG_FORMATTER
+        .try_with(|tl| {
+            let mut slot = tl.try_borrow_mut().ok()?;
+            Some(f(&mut slot))
+        })
+        .ok()
+        .flatten()
+}
+
 pub struct LogFormatter {
     buffer: Rc<RefCell<Buffer>>,
     color_style: ColorStyle,
