@@ -39,7 +39,6 @@ pub struct Builder {
     filter: filter::FilterBuilder,
     writer: writer::WriterBuilder,
     format: logger::FormatBuilder,
-    built: bool,
 }
 
 impl Builder {
@@ -47,66 +46,46 @@ impl Builder {
         Self::default()
     }
 
-    pub fn env_default(&mut self) -> &mut Self {
+    pub fn env_default(mut self) -> Self {
         let mut env_filter = FilterEnv::new(&mut self.filter);
         env_filter.parse_env_var("RUST_LOG");
         self
     }
 
-    pub fn from_env(&mut self, var_name: &str) -> &mut Self {
+    pub fn from_env(mut self, var_name: &str) -> Self {
         let mut env_filter = FilterEnv::new(&mut self.filter);
         env_filter.parse_env_var(var_name);
         self
     }
 
-    pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
-        self.filter.filter(module, level);
+    pub fn filter(mut self, module: Option<&str>, level: LogLevel) -> Self {
+        self.filter.filter_target(module, level);
         self
     }
 
-    pub fn color_style(&mut self, color_style: ColorStyle) -> &mut Self {
+    pub fn color_style(mut self, color_style: ColorStyle) -> Self {
         self.writer.color_style(color_style);
         self
     }
 
-    // pub fn default_format(&mut self) -> &mut Self {
-    //     self.format = Default::default();
-    //     self
-    // }
-
-    // pub fn filter_module(&mut self, module: &str, level: Level) -> &mut Self {
-    //     self.filter.filter_module(module, level);
-    //     self
-    // }
-
-    // pub fn filter_level(&mut self, level: Level) -> &mut Self {
-    //     self.filter.filter_level(level);
-    //     self
-    // }
-
-    // pub fn output(&mut self, target: Output) -> &mut Self {
-    //     self.writer.output(target);
-    //     self
-    // }
-
-    pub fn output_stdout(&mut self) -> &mut Self {
+    pub fn output_stdout(mut self) -> Self {
         self.writer.stdout();
         self
     }
 
-    pub fn output_stderr(&mut self) -> &mut Self {
+    pub fn output_stderr(mut self) -> Self {
         self.writer.stderr();
         self
     }
-    pub fn output_file(&mut self, path: impl Into<String>) -> &mut Self {
+    pub fn output_file(mut self, path: impl Into<String>) -> Self {
         self.writer.file(path);
         self
     }
 
-    pub fn try_init(&mut self) -> Result<(), &'static str> {
+    pub fn try_init(self) -> Result<(), &'static str> {
         let logger = self.build();
 
-        let max_level = logger.filter();
+        let max_level = logger.get_max_level();
         let result = set_logger(logger);
 
         if result.is_ok() {
@@ -116,14 +95,12 @@ impl Builder {
         result
     }
 
-    pub fn init(&mut self) {
+    pub fn init(self) {
         self.try_init()
             .expect("Builder::init should not be called after logger initialized");
     }
 
-    pub fn build(&mut self) -> Logger {
-        assert!(!self.built, "attempt to re-use consumed logger builder");
-        self.built = true;
+    pub fn build(self) -> Logger {
         Logger {
             writer: self.writer.build(),
             filter: self.filter.build(),
@@ -139,25 +116,17 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn set(logger: Logger) -> Result<(), &'static str> {
-        set_logger(logger)
-    }
-
     pub fn get() -> Option<&'static Self> {
         get_logger()
     }
 
-    pub fn filter(&self) -> LogLevel {
-        self.filter.filter()
+    pub fn get_max_level(&self) -> LogLevel {
+        self.filter.max_level()
     }
 
     pub fn matches(&self, record_msg: &LogMessage<'_>) -> bool {
         self.filter.matches(record_msg)
     }
-
-    // pub fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
-    //     self.filter.enabled(target, log_level)
-    // }
 
     pub fn log_msg(&self, record_msg: &LogMessage<'_>) {
         if self.matches(record_msg) {
@@ -213,7 +182,6 @@ impl Logger {
         });
 
         // Flush the underlying writer's buffer
-        // let _ = self.writer.print_out(&self.writer.buffer());
         let _ = self.writer.flush();
     }
 }

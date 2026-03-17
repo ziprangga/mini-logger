@@ -6,33 +6,19 @@ pub struct FilterTarget {
     level: LogLevel,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Filter {
     filter_target: Vec<FilterTarget>,
     filter_string: Option<String>,
 }
 
 impl Filter {
-    pub fn new() -> Self {
-        Self {
-            filter_target: Vec::new(),
-            filter_string: None,
-        }
-    }
-
-    pub fn filter(&self) -> LogLevel {
+    pub fn max_level(&self) -> LogLevel {
         self.filter_target
             .iter()
             .map(|d| d.level)
             .max()
             .unwrap_or(LogLevel::Off)
-    }
-
-    pub fn is_match(&self, s: &str) -> bool {
-        match &self.filter_string {
-            Some(f) => s.contains(f),
-            None => true,
-        }
     }
 
     pub fn matches(&self, record_msg: &LogMessage<'_>) -> bool {
@@ -43,11 +29,17 @@ impl Filter {
         if !self.is_match(&record_msg.msg().to_string()) {
             return false;
         }
-
         true
     }
 
-    pub fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
+    fn is_match(&self, s: &str) -> bool {
+        match &self.filter_string {
+            Some(f) => s.contains(f),
+            None => true,
+        }
+    }
+
+    fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
         let mut level = LogLevel::Off;
 
         for d in &self.filter_target {
@@ -62,22 +54,19 @@ impl Filter {
                 }
             }
         }
-
         *log_level <= level
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct FilterBuilder {
     filter: Filter,
-    built: bool,
 }
 
 impl FilterBuilder {
     pub fn new() -> Self {
         Self {
-            filter: Filter::new(),
-            built: false,
+            filter: Filter::default(),
         }
     }
 
@@ -94,7 +83,7 @@ impl FilterBuilder {
         }
     }
 
-    pub fn filter(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
+    pub fn filter_target(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
         self.insert_filter(FilterTarget {
             target: module.map(|s| s.to_owned()),
             level,
@@ -102,25 +91,14 @@ impl FilterBuilder {
         self
     }
 
-    pub fn filter_module(&mut self, module: &str, level: LogLevel) -> &mut Self {
-        self.filter(Some(module), level)
-    }
-
-    pub fn filter_level(&mut self, level: LogLevel) -> &mut Self {
-        self.filter(None, level)
-    }
-
     pub fn filter_string(&mut self, s: impl Into<String>) -> &mut Self {
         self.filter.filter_string = Some(s.into());
         self
     }
 
-    pub fn build(&mut self) -> Filter {
-        // self.filter
-        assert!(!self.built, "attempt to re-use consumed filter builder");
-        self.built = true;
-
+    pub fn build(mut self) -> Filter {
         let mut filter_target = Vec::new();
+
         if self.filter.filter_target.is_empty() {
             filter_target.push(FilterTarget {
                 target: None,
@@ -185,11 +163,13 @@ impl<'a> FilterEnv<'a> {
 
             let level = level_str.parse::<LogLevel>().unwrap_or(LogLevel::Off);
 
-            if module.is_empty() {
-                self.builder.filter_level(level);
+            let module_opt = if module.is_empty() {
+                None
             } else {
-                self.builder.filter_module(module, level);
-            }
+                Some(module)
+            };
+
+            self.builder.filter_target(module_opt, level);
         }
         self
     }
