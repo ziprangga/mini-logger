@@ -1,29 +1,29 @@
 use std::fmt::Display;
 use std::io::{self, Write};
 
-use crate::format::LogFormatter;
-use crate::logger::log_config::LogLevel;
-use crate::logger::log_message::LogMessage;
+use crate::logger::LogLevel;
+use crate::logger::LogMessage;
 use crate::style::TimestampPrecision;
+use crate::writer::BufferFormat;
 
 pub trait FormatRecord {
     fn format_record(
         &self,
-        format: &mut LogFormatter,
+        buf_format: &mut BufferFormat,
         record_msg: &LogMessage<'_>,
     ) -> std::io::Result<()>;
 }
 
 impl<F> FormatRecord for F
 where
-    F: Fn(&mut LogFormatter, &LogMessage<'_>) -> io::Result<()>,
+    F: Fn(&mut BufferFormat, &LogMessage<'_>) -> io::Result<()>,
 {
     fn format_record(
         &self,
-        formatter: &mut LogFormatter,
+        buf_format: &mut BufferFormat,
         record_msg: &LogMessage<'_>,
     ) -> io::Result<()> {
-        (self)(formatter, record_msg)
+        (self)(buf_format, record_msg)
     }
 }
 
@@ -85,12 +85,12 @@ impl Default for FormatConfig {
 impl FormatRecord for FormatConfig {
     fn format_record(
         &self,
-        formatter: &mut LogFormatter,
+        buf_format: &mut BufferFormat,
         record_msg: &LogMessage<'_>,
     ) -> io::Result<()> {
         let fmt = FormatWriter {
             format: self,
-            buf: formatter,
+            buf_format: buf_format,
             written_header: false,
         };
 
@@ -100,7 +100,7 @@ impl FormatRecord for FormatConfig {
 
 struct FormatWriter<'a> {
     pub format: &'a FormatConfig,
-    pub buf: &'a mut LogFormatter,
+    pub buf_format: &'a mut BufferFormat,
     written_header: bool,
 }
 
@@ -121,9 +121,9 @@ impl FormatWriter<'_> {
     {
         if !self.written_header {
             self.written_header = true;
-            write!(self.buf, "[{value}")?;
+            write!(self.buf_format, "[{value}")?;
         } else {
-            write!(self.buf, " {value}")?;
+            write!(self.buf_format, " {value}")?;
         }
 
         Ok(())
@@ -134,10 +134,10 @@ impl FormatWriter<'_> {
             use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
             let ts = match self.format.timestamp {
                 None => return Ok(()),
-                Some(Seconds) => self.buf.timestamp().timestamp_seconds(),
-                Some(Millis) => self.buf.timestamp().timestamp_millis(),
-                Some(Micros) => self.buf.timestamp().timestamp_micros(),
-                Some(Nanos) => self.buf.timestamp().timestamp_nanos(),
+                Some(Seconds) => self.buf_format.timestamp().timestamp_seconds(),
+                Some(Millis) => self.buf_format.timestamp().timestamp_millis(),
+                Some(Micros) => self.buf_format.timestamp().timestamp_micros(),
+                Some(Nanos) => self.buf_format.timestamp().timestamp_nanos(),
             };
 
             self.write_header_value(ts)
@@ -160,9 +160,9 @@ impl FormatWriter<'_> {
         };
         self.write_header_value(format_args!(
             "{}{:<5}{}",
-            self.buf.color_mode().color(color),
+            self.buf_format.color_mode().color(color),
             level_str,
-            self.buf.color_mode().reset()
+            self.buf_format.color_mode().reset()
         ))
     }
 
@@ -192,12 +192,12 @@ impl FormatWriter<'_> {
 
     fn finish_header(&mut self) -> io::Result<()> {
         if self.written_header {
-            write!(self.buf, "] ")?;
+            write!(self.buf_format, "] ")?;
         }
         Ok(())
     }
 
     fn write_args(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
-        write!(self.buf, "{}\n", record_msg.msg())
+        write!(self.buf_format, "{}\n", record_msg.msg())
     }
 }

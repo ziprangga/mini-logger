@@ -5,14 +5,14 @@ use crate::style::{ColorMode, Timestamp};
 use crate::writer::{Buffer, Writer};
 
 thread_local! {
-    static LOG_FORMATTER: RefCell<Option<LogFormatter>> = const {RefCell::new(None)};
+    static BUFFER_FORMAT: RefCell<Option<BufferFormat>> = const {RefCell::new(None)};
 }
 
-pub fn try_with_log_formatter_slot<F, R>(f: F) -> Option<R>
+pub fn try_with_buf_format_slot<F, R>(f: F) -> Option<R>
 where
-    F: FnOnce(&mut Option<LogFormatter>) -> R,
+    F: FnOnce(&mut Option<BufferFormat>) -> R,
 {
-    LOG_FORMATTER
+    BUFFER_FORMAT
         .try_with(|tl| {
             let mut slot = tl.try_borrow_mut().ok()?;
             Some(f(&mut slot))
@@ -21,12 +21,12 @@ where
         .flatten()
 }
 
-pub struct LogFormatter {
+pub struct BufferFormat {
     buffer: Rc<RefCell<Buffer>>,
     color_mode: ColorMode,
 }
 
-impl LogFormatter {
+impl BufferFormat {
     pub fn new(writer: &Writer) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(writer.buffer())),
@@ -51,7 +51,7 @@ impl LogFormatter {
     }
 }
 
-impl std::io::prelude::Write for LogFormatter {
+impl std::io::prelude::Write for BufferFormat {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.buffer.borrow_mut().write_out(buf)
     }

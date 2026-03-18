@@ -5,9 +5,9 @@ mod style;
 mod writer;
 
 pub use filter::*;
-pub use format::{LogFormatter, try_with_log_formatter_slot};
+pub use format::*;
 pub use logger::*;
-pub use style::{Color, ColorMode, Timestamp, TimestampPrecision};
+pub use style::*;
 pub use writer::*;
 
 use std::sync::OnceLock;
@@ -34,7 +34,7 @@ pub fn init() {
 pub struct Builder {
     filter: filter::FilterBuilder,
     writer: writer::WriterBuilder,
-    format: logger::FormatBuilder,
+    format: format::FormatBuilder,
 }
 
 impl Builder {
@@ -108,7 +108,7 @@ impl Builder {
 pub struct Logger {
     writer: writer::Writer,
     filter: filter::Filter,
-    format: logger::FormatLog,
+    format: format::FormatLog,
 }
 
 impl Logger {
@@ -129,44 +129,44 @@ impl Logger {
             return;
         }
 
-        let write_and_flush = |log_formatter: &mut LogFormatter| {
+        let write_and_flush = |buf_format: &mut BufferFormat| {
             let _ = self
                 .format
-                .format_record(log_formatter, record_msg)
-                .and_then(|_| log_formatter.print(&self.writer));
+                .format_record(buf_format, record_msg)
+                .and_then(|_| buf_format.print(&self.writer));
             // Clear buffer for next log
-            log_formatter.clear();
+            buf_format.clear();
         };
 
         //Use thread-local buffer
-        let printed = try_with_log_formatter_slot(|slot| match slot {
-            Some(log_formatter) => {
-                if log_formatter.color_mode() != self.writer.color_mode() {
-                    *log_formatter = LogFormatter::new(&self.writer);
+        let printed = try_with_buf_format_slot(|slot| match slot {
+            Some(buf_format) => {
+                if buf_format.color_mode() != self.writer.color_mode() {
+                    *buf_format = BufferFormat::new(&self.writer);
                 }
-                write_and_flush(log_formatter);
+                write_and_flush(buf_format);
             }
             None => {
-                let mut log_formatter = LogFormatter::new(&self.writer);
-                write_and_flush(&mut log_formatter);
-                *slot = Some(log_formatter);
+                let mut buf_format = BufferFormat::new(&self.writer);
+                write_and_flush(&mut buf_format);
+                *slot = Some(buf_format);
             }
         })
         .is_some();
 
         // Fallback if thread-local unavailable (thread shutting down)
         if !printed {
-            let mut log_formatter = LogFormatter::new(&self.writer);
-            write_and_flush(&mut log_formatter);
+            let mut buf_format = BufferFormat::new(&self.writer);
+            write_and_flush(&mut buf_format);
         }
     }
 
     pub fn flush(&self) {
         // Flush all thread-local formatters
-        let _ = try_with_log_formatter_slot(|slot| {
-            if let Some(log_formatter) = slot {
-                let _ = log_formatter.print(&self.writer);
-                log_formatter.clear();
+        let _ = try_with_buf_format_slot(|slot| {
+            if let Some(buf_format) = slot {
+                let _ = buf_format.print(&self.writer);
+                buf_format.clear();
             }
         });
         // Flush the underlying writer's buffer
