@@ -1,10 +1,11 @@
 mod filter;
-// mod format;
+mod format;
 mod logger;
 mod style;
 mod writer;
 
 pub use filter::*;
+pub use format::{LogFormatter, try_with_log_formatter_slot};
 pub use logger::*;
 pub use style::{Color, ColorStyle, Timestamp, TimestampPrecision};
 pub use writer::*;
