@@ -27,16 +27,16 @@ where
     }
 }
 
-pub type FormatLog = Box<dyn FormatRecord + Sync + Send>;
+pub type Format = Box<dyn FormatRecord + Sync + Send>;
 
 #[derive(Default)]
 pub struct FormatBuilder {
     format_default: FormatConfig,
-    format_custom: Option<FormatLog>,
+    format_custom: Option<Format>,
 }
 
 impl FormatBuilder {
-    pub fn build(self) -> FormatLog {
+    pub fn build(self) -> Format {
         if let Some(fmt) = self.format_custom {
             fmt
         } else {

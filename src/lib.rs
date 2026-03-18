@@ -108,7 +108,7 @@ impl Builder {
 pub struct Logger {
     writer: writer::Writer,
     filter: filter::Filter,
-    format: format::FormatLog,
+    format: format::Format,
 }
 
 impl Logger {
