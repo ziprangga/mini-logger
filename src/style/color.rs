@@ -20,20 +20,20 @@ impl Color {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
-pub enum ColorStyle {
+pub enum ColorMode {
     #[default]
     Auto,
     Always,
     Never,
 }
 
-impl ColorStyle {
+impl ColorMode {
     fn enabled(self) -> bool {
         use std::io::IsTerminal;
         match self {
-            ColorStyle::Always => true,
-            ColorStyle::Never => false,
-            ColorStyle::Auto => std::io::stdout().is_terminal(),
+            ColorMode::Always => true,
+            ColorMode::Never => false,
+            ColorMode::Auto => std::io::stdout().is_terminal(),
         }
     }
 
@@ -50,15 +50,15 @@ impl ColorStyle {
     }
 }
 
-impl std::str::FromStr for ColorStyle {
+impl std::str::FromStr for ColorMode {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "auto" => Ok(ColorStyle::Auto),
-            "always" => Ok(ColorStyle::Always),
-            "never" => Ok(ColorStyle::Never),
-            _ => Ok(ColorStyle::default()),
+            "auto" => Ok(ColorMode::Auto),
+            "always" => Ok(ColorMode::Always),
+            "never" => Ok(ColorMode::Never),
+            _ => Ok(ColorMode::default()),
         }
     }
 }

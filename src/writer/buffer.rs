@@ -1,5 +1,5 @@
 use super::Output;
-use crate::style::ColorStyle;
+use crate::style::ColorMode;
 
 pub struct Buffer(Vec<u8>);
 impl Buffer {
@@ -30,15 +30,12 @@ impl std::fmt::Debug for Buffer {
 #[derive(Debug, Default)]
 pub struct BufferWriter {
     output: Output,
-    color_style: ColorStyle,
+    color_mode: ColorMode,
 }
 
 impl BufferWriter {
-    pub fn new(output: Output, color_style: ColorStyle) -> Self {
-        Self {
-            output,
-            color_style,
-        }
+    pub fn new(output: Output, color_mode: ColorMode) -> Self {
+        Self { output, color_mode }
     }
 
     pub fn buffer(&self) -> Buffer {
@@ -58,12 +55,12 @@ impl BufferWriter {
         self
     }
 
-    pub fn color_style(&self) -> ColorStyle {
-        self.color_style
+    pub fn color_mode(&self) -> ColorMode {
+        self.color_mode
     }
 
-    pub fn set_color_style(&mut self, color_style: ColorStyle) -> &mut Self {
-        self.color_style = color_style;
+    pub fn set_color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
+        self.color_mode = color_mode;
         self
     }
 

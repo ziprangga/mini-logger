@@ -7,7 +7,7 @@ mod writer;
 pub use filter::*;
 pub use format::{LogFormatter, try_with_log_formatter_slot};
 pub use logger::*;
-pub use style::{Color, ColorStyle, Timestamp, TimestampPrecision};
+pub use style::{Color, ColorMode, Timestamp, TimestampPrecision};
 pub use writer::*;
 
 use std::sync::OnceLock;
@@ -59,8 +59,8 @@ impl Builder {
         self
     }
 
-    pub fn color_style(mut self, color_style: ColorStyle) -> Self {
-        self.writer.color_style(color_style);
+    pub fn color_mode(mut self, color_mode: ColorMode) -> Self {
+        self.writer.color_mode(color_mode);
         self
     }
 
@@ -141,7 +141,7 @@ impl Logger {
         //Use thread-local buffer
         let printed = try_with_log_formatter_slot(|slot| match slot {
             Some(log_formatter) => {
-                if log_formatter.color_style() != self.writer.color_style() {
+                if log_formatter.color_mode() != self.writer.color_mode() {
                     *log_formatter = LogFormatter::new(&self.writer);
                 }
                 write_and_flush(log_formatter);

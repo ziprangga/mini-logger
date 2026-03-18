@@ -7,7 +7,7 @@ fn init_using_builder_or_direct(direct: bool) {
     } else {
         mini_logger::Builder::new()
             .env_default()
-            .color_style(mini_logger::ColorStyle::Never)
+            .color_mode(mini_logger::ColorMode::Never)
             .output_stdout()
             .init()
     }

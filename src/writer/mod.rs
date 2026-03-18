@@ -1,6 +1,6 @@
 mod buffer;
 
-use crate::style::ColorStyle;
+use crate::style::ColorMode;
 pub use buffer::{Buffer, BufferWriter};
 
 #[derive(Default)]
@@ -35,8 +35,8 @@ impl Writer {
         WriterBuilder::new()
     }
 
-    pub fn color_style(&self) -> ColorStyle {
-        self.buffer_writer.color_style()
+    pub fn color_mode(&self) -> ColorMode {
+        self.buffer_writer.color_mode()
     }
 
     pub fn buffer(&self) -> Buffer {
@@ -89,34 +89,34 @@ impl WriterBuilder {
         self
     }
 
-    pub fn color_style(&mut self, color_style: ColorStyle) -> &mut Self {
-        self.writer.buffer_writer.set_color_style(color_style);
+    pub fn color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
+        self.writer.buffer_writer.set_color_mode(color_mode);
         self
     }
 
     pub fn build(self) -> Writer {
-        let color = self.writer.color_style();
+        let color = self.writer.color_mode();
         let output = self.writer.buffer_writer.output_take();
 
         use std::io::IsTerminal;
 
-        let color_choice = if color == ColorStyle::Auto {
+        let color_choice = if color == ColorMode::Auto {
             match output {
                 Output::Stdout => {
                     if std::io::stdout().is_terminal() {
-                        ColorStyle::Always
+                        ColorMode::Always
                     } else {
-                        ColorStyle::Never
+                        ColorMode::Never
                     }
                 }
                 Output::Stderr => {
                     if std::io::stderr().is_terminal() {
-                        ColorStyle::Always
+                        ColorMode::Always
                     } else {
-                        ColorStyle::Never
+                        ColorMode::Never
                     }
                 }
-                Output::File(_) => ColorStyle::Never,
+                Output::File(_) => ColorMode::Never,
             }
         } else {
             color

@@ -160,9 +160,9 @@ impl FormatWriter<'_> {
         };
         self.write_header_value(format_args!(
             "{}{:<5}{}",
-            self.buf.color_style().color(color),
+            self.buf.color_mode().color(color),
             level_str,
-            self.buf.color_style().reset()
+            self.buf.color_mode().reset()
         ))
     }
 

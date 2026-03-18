@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::style::{ColorStyle, Timestamp};
+use crate::style::{ColorMode, Timestamp};
 use crate::writer::{Buffer, Writer};
 
 thread_local! {
@@ -23,19 +23,19 @@ where
 
 pub struct LogFormatter {
     buffer: Rc<RefCell<Buffer>>,
-    color_style: ColorStyle,
+    color_mode: ColorMode,
 }
 
 impl LogFormatter {
     pub fn new(writer: &Writer) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(writer.buffer())),
-            color_style: writer.color_style(),
+            color_mode: writer.color_mode(),
         }
     }
 
-    pub fn color_style(&self) -> ColorStyle {
-        self.color_style
+    pub fn color_mode(&self) -> ColorMode {
+        self.color_mode
     }
 
     pub fn print(&self, writer: &Writer) -> std::io::Result<()> {
