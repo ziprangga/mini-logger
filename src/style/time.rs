@@ -10,6 +10,20 @@ pub enum TimestampPrecision {
     Nanos,
 }
 
+impl std::str::FromStr for TimestampPrecision {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "seconds" => Ok(TimestampPrecision::Seconds),
+            "millis" => Ok(TimestampPrecision::Millis),
+            "micros" => Ok(TimestampPrecision::Micros),
+            "nanos" => Ok(TimestampPrecision::Nanos),
+            _ => Ok(TimestampPrecision::Seconds),
+        }
+    }
+}
+
 impl Default for TimestampPrecision {
     fn default() -> Self {
         Self::Seconds
