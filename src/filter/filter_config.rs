@@ -1,4 +1,4 @@
-use crate::logger::{LogLevel, LogMessage};
+use crate::log_config::{LogLevel, LogMessage};
 
 #[derive(Clone, Debug)]
 pub struct FilterTarget {

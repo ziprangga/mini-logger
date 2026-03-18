@@ -1,7 +1,7 @@
 mod buf_format;
 mod buffer;
 
-pub use buf_format::{BufferFormat, try_with_buf_format_slot};
+pub use buf_format::{BufferFormatter, try_with_buf_formatter_slot};
 pub use buffer::{Buffer, BufferWriter};
 
 use crate::style::ColorMode;

@@ -5,14 +5,14 @@ use crate::style::{ColorMode, Timestamp};
 use crate::writer::{Buffer, Writer};
 
 thread_local! {
-    static BUFFER_FORMAT: RefCell<Option<BufferFormat>> = const {RefCell::new(None)};
+    static BUFFER_FORMATTER: RefCell<Option<BufferFormatter>> = const {RefCell::new(None)};
 }
 
-pub fn try_with_buf_format_slot<F, R>(f: F) -> Option<R>
+pub fn try_with_buf_formatter_slot<F, R>(f: F) -> Option<R>
 where
-    F: FnOnce(&mut Option<BufferFormat>) -> R,
+    F: FnOnce(&mut Option<BufferFormatter>) -> R,
 {
-    BUFFER_FORMAT
+    BUFFER_FORMATTER
         .try_with(|tl| {
             let mut slot = tl.try_borrow_mut().ok()?;
             Some(f(&mut slot))
@@ -21,12 +21,12 @@ where
         .flatten()
 }
 
-pub struct BufferFormat {
+pub struct BufferFormatter {
     buffer: Rc<RefCell<Buffer>>,
     color_mode: ColorMode,
 }
 
-impl BufferFormat {
+impl BufferFormatter {
     pub fn new(writer: &Writer) -> Self {
         Self {
             buffer: Rc::new(RefCell::new(writer.buffer())),
@@ -51,7 +51,7 @@ impl BufferFormat {
     }
 }
 
-impl std::io::prelude::Write for BufferFormat {
+impl std::io::prelude::Write for BufferFormatter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.buffer.borrow_mut().write_out(buf)
     }
