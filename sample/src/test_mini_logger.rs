@@ -11,16 +11,16 @@ fn default() {
 fn custom() {
     mini_logger::Builder::new()
         .env_default()
-        .format(|buf, message| {
-            let (level_str, level_color) = match message.level() {
-                LogLevel::Off => ("OFF", Color::Reset),
-                LogLevel::Error => ("ERROR", Color::Red),
-                LogLevel::Warn => ("WARN", Color::Yellow),
-                LogLevel::Info => ("INFO", Color::Green),
-                LogLevel::Debug => ("DEBUG", Color::Blue),
-                LogLevel::Trace => ("TRACE", Color::Blue),
+        .format_custom(|buf, message| {
+            let color = match message.level() {
+                LogLevel::Off => Color::Reset,
+                LogLevel::Error => Color::Red,
+                LogLevel::Warn => Color::Yellow,
+                LogLevel::Info => Color::Green,
+                LogLevel::Debug => Color::Blue,
+                LogLevel::Trace => Color::Blue,
             };
-
+            let level_str = message.level().as_str();
             let ts = buf.timestamp();
             let color_mode = ColorMode::Auto;
 
@@ -28,7 +28,7 @@ fn custom() {
                 buf,
                 "{} [{}{}{}] - {}",
                 ts,
-                color_mode.color(level_color), // Start style
+                color_mode.color(color), // Start style
                 level_str,
                 color_mode.reset(), // Reset style
                 message.msg()

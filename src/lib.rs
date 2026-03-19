@@ -64,12 +64,22 @@ impl Builder {
         self
     }
 
-    pub fn format_default(mut self) -> Self {
-        self.format = Default::default();
+    pub fn format_level(mut self, write: bool) -> Self {
+        self.format.format_default().level(write);
         self
     }
 
-    pub fn format<F>(mut self, format: F) -> Self
+    pub fn format_target(mut self, write: bool) -> Self {
+        self.format.format_default().target(write);
+        self
+    }
+
+    pub fn format_module_path(mut self, write: bool) -> Self {
+        self.format.format_default().module_path(write);
+        self
+    }
+
+    pub fn format_custom<F>(mut self, format: F) -> Self
     where
         F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
     {

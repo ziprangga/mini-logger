@@ -36,8 +36,8 @@ pub struct FormatBuilder {
 }
 
 impl FormatBuilder {
-    pub fn format_default(self) -> FormatConfig {
-        self.format_default
+    pub fn format_default(&mut self) -> &mut FormatConfig {
+        &mut self.format_default
     }
 
     pub fn format_custom(&mut self) -> &mut Option<Format> {
@@ -158,14 +158,16 @@ impl FormatWriter<'_> {
         }
 
         use crate::style::Color;
-        let (level_str, color) = match record_msg.level() {
-            LogLevel::Off => ("OFF", Color::Reset),
-            LogLevel::Error => ("ERROR", Color::Red),
-            LogLevel::Warn => ("WARN", Color::Yellow),
-            LogLevel::Info => ("INFO", Color::Green),
-            LogLevel::Debug => ("DEBUG", Color::Blue),
-            LogLevel::Trace => ("TRACE", Color::Blue),
+        let color = match record_msg.level() {
+            LogLevel::Off => Color::Reset,
+            LogLevel::Error => Color::Red,
+            LogLevel::Warn => Color::Yellow,
+            LogLevel::Info => Color::Green,
+            LogLevel::Debug => Color::Blue,
+            LogLevel::Trace => Color::Blue,
         };
+        let level_str = record_msg.level().as_str();
+
         self.write_header_value(format_args!(
             "{}{:<5}{}",
             self.buf_formatter.color_mode().color(color),

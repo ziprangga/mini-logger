@@ -1,2 +1,2 @@
 mod format_config;
-pub use format_config::{Format, FormatBuilder, FormatConfig};
+pub use format_config::{Format, FormatBuilder, FormatConfig, FormatRecord};
