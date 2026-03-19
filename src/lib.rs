@@ -83,7 +83,6 @@ impl Builder {
     where
         F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
     {
-        // *self.format.format_custom() = Some(Box::new(format));
         self.format.format_custom(format);
         self
     }
