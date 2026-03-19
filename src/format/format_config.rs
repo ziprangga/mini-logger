@@ -6,19 +6,19 @@ use crate::log_config::LogMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
 
-pub trait FormatRecord {
-    fn format_record(
+pub trait FormatCustom {
+    fn format_custom_layout(
         &self,
         buf_formatter: &mut BufferFormatter,
         record_msg: &LogMessage<'_>,
     ) -> std::io::Result<()>;
 }
 
-impl<F> FormatRecord for F
+impl<F> FormatCustom for F
 where
     F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> io::Result<()>,
 {
-    fn format_record(
+    fn format_custom_layout(
         &self,
         buf_formatter: &mut BufferFormatter,
         record_msg: &LogMessage<'_>,
@@ -27,57 +27,9 @@ where
     }
 }
 
-// `Format` enum replaces the previous boxed-only `Format` type:
-// pub type Format = Box<dyn FormatRecord + Sync + Send>;
-//
-// ```ignore
-// // Old version:
-// #[derive(Default)]
-// pub struct FormatBuilder {
-//     format_default: FormatConfig,
-//     format_custom: Option<Format>,
-// }
-//
-// impl FormatBuilder {
-//     pub fn format_default(&mut self) -> &mut FormatConfig {
-//         &mut self.format_default
-//     }
-//
-//     pub fn format_custom(&mut self) -> &mut Option<Format> {
-//         &mut self.format_custom
-//     }
-//
-//     pub fn build(self) -> Format {
-//         if let Some(fmt) = self.format_custom {
-//             fmt
-//         } else {
-//             Box::new(self.format_default)
-//         }
-//     }
-// }
-// Reasons for using the enum:
-// 1. **Avoid heap allocation for default formatting**:
-//    - The `Default(FormatConfig)` variant stores the default configuration inline.
-//    - Previously, even default formatting required a `Box`, which is unnecessary
-//      for the common case.
-// 2. **Explicit separation of default vs custom**:
-//    - `Default` variant uses the built-in `FormatConfig` struct.
-//    - `Custom` variant allows storing any user-provided formatter as a boxed trait object.
-// 3. **Performance optimization**:
-//    - Default formatting is the common path; this design avoids dynamic dispatch and
-//      heap allocation in that case.
-// 4. **Optimized for general/simple use**:
-//    - The default is meant to provide a “mini” logger for simple debug reporting
-//      without needing configuration, making common logging fast and lightweight.
-// 5. **Flexible and extendable**:
-//    - Custom formatters are still fully supported via `Custom(Box<dyn FormatRecord>)`.
-//
-// This enum preserves type safety, improves performance for defaults, and keeps
-// the API clear for builders and formatters and aligns with the goal of a
-// small/simple debug logger.
 pub enum Format {
     Default(FormatConfig),
-    Custom(Box<dyn FormatRecord + Send + Sync>),
+    Custom(Box<dyn FormatCustom + Send + Sync>),
 }
 
 impl Format {
@@ -87,36 +39,43 @@ impl Format {
         record_msg: &LogMessage<'_>,
     ) -> io::Result<()> {
         match self {
-            Format::Default(f) => f.format_record(buf_formatter, record_msg),
-            Format::Custom(f) => f.format_record(buf_formatter, record_msg),
+            Format::Default(f) => f.format_write_layout(buf_formatter, record_msg),
+            Format::Custom(f) => f.format_custom_layout(buf_formatter, record_msg),
         }
+    }
+}
+
+impl Default for Format {
+    fn default() -> Self {
+        Format::Default(FormatConfig::default())
     }
 }
 
 #[derive(Default)]
 pub struct FormatBuilder {
-    format_default: FormatConfig,
-    format_custom: Option<Box<dyn FormatRecord + Send + Sync>>,
+    format: Format,
 }
 
 impl FormatBuilder {
     pub fn format_default(&mut self) -> &mut FormatConfig {
-        &mut self.format_default
+        self.format = Format::Default(FormatConfig::default());
+
+        match &mut self.format {
+            Format::Default(cfg) => cfg,
+            _ => unreachable!("Format should now always be Default"),
+        }
     }
 
-    pub fn format_custom<F>(&mut self, f: F)
+    pub fn format_custom<F>(&mut self, f: F) -> &mut Self
     where
-        F: FormatRecord + Send + Sync + 'static,
+        F: FormatCustom + Send + Sync + 'static,
     {
-        self.format_custom = Some(Box::new(f));
+        self.format = Format::Custom(Box::new(f));
+        self
     }
 
     pub fn build(self) -> Format {
-        if let Some(fmt) = self.format_custom {
-            Format::Custom(fmt)
-        } else {
-            Format::Default(self.format_default)
-        }
+        self.format
     }
 }
 
@@ -144,6 +103,20 @@ impl FormatConfig {
         self.module_path = write;
         self
     }
+
+    pub fn format_write_layout(
+        &self,
+        buf_formatter: &mut BufferFormatter,
+        record_msg: &LogMessage<'_>,
+    ) -> io::Result<()> {
+        let fmt = FormatLayoutWriter {
+            format: self,
+            buf_formatter: buf_formatter,
+            written_header: false,
+        };
+
+        fmt.write(record_msg)
+    }
 }
 
 impl Default for FormatConfig {
@@ -157,29 +130,13 @@ impl Default for FormatConfig {
     }
 }
 
-impl FormatRecord for FormatConfig {
-    fn format_record(
-        &self,
-        buf_formatter: &mut BufferFormatter,
-        record_msg: &LogMessage<'_>,
-    ) -> io::Result<()> {
-        let fmt = FormatWriter {
-            format: self,
-            buf_formatter: buf_formatter,
-            written_header: false,
-        };
-
-        fmt.write(record_msg)
-    }
-}
-
-struct FormatWriter<'a> {
+struct FormatLayoutWriter<'a> {
     pub format: &'a FormatConfig,
     pub buf_formatter: &'a mut BufferFormatter,
     written_header: bool,
 }
 
-impl FormatWriter<'_> {
+impl FormatLayoutWriter<'_> {
     #[inline]
     pub fn write(mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
         self.write_timestamp()?;
