@@ -36,6 +36,14 @@ pub struct FormatBuilder {
 }
 
 impl FormatBuilder {
+    pub fn format_default(self) -> FormatConfig {
+        self.format_default
+    }
+
+    pub fn format_custom(&mut self) -> &mut Option<Format> {
+        &mut self.format_custom
+    }
+
     pub fn build(self) -> Format {
         if let Some(fmt) = self.format_custom {
             fmt

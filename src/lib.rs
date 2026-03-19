@@ -64,6 +64,19 @@ impl Builder {
         self
     }
 
+    pub fn format_default(mut self) -> Self {
+        self.format = Default::default();
+        self
+    }
+
+    pub fn format<F>(mut self, format: F) -> Self
+    where
+        F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
+    {
+        *self.format.format_custom() = Some(Box::new(format));
+        self
+    }
+
     pub fn output_stdout(mut self) -> Self {
         self.writer.stdout();
         self
