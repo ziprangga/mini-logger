@@ -6,84 +6,11 @@ use crate::log_config::LogMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
 
-pub trait FormatCustom {
-    fn format_custom_layout(
-        &self,
-        buf_formatter: &mut BufferFormatter,
-        record_msg: &LogMessage<'_>,
-    ) -> std::io::Result<()>;
-}
-
-impl<F> FormatCustom for F
-where
-    F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> io::Result<()>,
-{
-    fn format_custom_layout(
-        &self,
-        buf_formatter: &mut BufferFormatter,
-        record_msg: &LogMessage<'_>,
-    ) -> io::Result<()> {
-        (self)(buf_formatter, record_msg)
-    }
-}
-
-pub enum Format {
-    Default(FormatConfig),
-    Custom(Box<dyn FormatCustom + Send + Sync>),
-}
-
-impl Format {
-    pub fn format_record(
-        &self,
-        buf_formatter: &mut BufferFormatter,
-        record_msg: &LogMessage<'_>,
-    ) -> io::Result<()> {
-        match self {
-            Format::Default(f) => f.format_write_layout(buf_formatter, record_msg),
-            Format::Custom(f) => f.format_custom_layout(buf_formatter, record_msg),
-        }
-    }
-}
-
-impl Default for Format {
-    fn default() -> Self {
-        Format::Default(FormatConfig::default())
-    }
-}
-
-#[derive(Default)]
-pub struct FormatBuilder {
-    format: Format,
-}
-
-impl FormatBuilder {
-    pub fn format_default(&mut self) -> &mut FormatConfig {
-        self.format = Format::Default(FormatConfig::default());
-
-        match &mut self.format {
-            Format::Default(cfg) => cfg,
-            _ => unreachable!("Format should now always be Default"),
-        }
-    }
-
-    pub fn format_custom<F>(&mut self, f: F) -> &mut Self
-    where
-        F: FormatCustom + Send + Sync + 'static,
-    {
-        self.format = Format::Custom(Box::new(f));
-        self
-    }
-
-    pub fn build(self) -> Format {
-        self.format
-    }
-}
-
 pub struct FormatConfig {
-    pub timestamp: Option<TimestampPrecision>,
-    pub level: bool,
-    pub target: bool,
-    pub module_path: bool,
+    timestamp: Option<TimestampPrecision>,
+    level: bool,
+    target: bool,
+    module_path: bool,
 }
 
 impl FormatConfig {
@@ -110,7 +37,7 @@ impl FormatConfig {
         record_msg: &LogMessage<'_>,
     ) -> io::Result<()> {
         let fmt = FormatLayoutWriter {
-            format: self,
+            format_config: self,
             buf_formatter: buf_formatter,
             written_header: false,
         };
@@ -131,8 +58,8 @@ impl Default for FormatConfig {
 }
 
 struct FormatLayoutWriter<'a> {
-    pub format: &'a FormatConfig,
-    pub buf_formatter: &'a mut BufferFormatter,
+    format_config: &'a FormatConfig,
+    buf_formatter: &'a mut BufferFormatter,
     written_header: bool,
 }
 
@@ -164,7 +91,7 @@ impl FormatLayoutWriter<'_> {
     fn write_timestamp(&mut self) -> io::Result<()> {
         {
             use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
-            let ts = match self.format.timestamp {
+            let ts = match self.format_config.timestamp {
                 None => return Ok(()),
                 Some(Seconds) => self.buf_formatter.timestamp().timestamp_seconds(),
                 Some(Millis) => self.buf_formatter.timestamp().timestamp_millis(),
@@ -177,7 +104,7 @@ impl FormatLayoutWriter<'_> {
     }
 
     fn write_level(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
-        if !self.format.level {
+        if !self.format_config.level {
             return Ok(());
         }
 
@@ -201,7 +128,7 @@ impl FormatLayoutWriter<'_> {
     }
 
     fn write_target(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
-        if !self.format.target {
+        if !self.format_config.target {
             return Ok(());
         }
 
@@ -214,7 +141,7 @@ impl FormatLayoutWriter<'_> {
     }
 
     fn write_module(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
-        if !self.format.module_path {
+        if !self.format_config.module_path {
             return Ok(());
         }
         if let Some(module) = record_msg.module() {
