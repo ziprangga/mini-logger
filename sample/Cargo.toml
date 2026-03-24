@@ -8,5 +8,3 @@ publish = false
 
 [dependencies]
 mini-logger = { path = ".." }
-log = "0.4.29"
-env_logger = { version = "0.11", features = ["color", "humantime"] }
