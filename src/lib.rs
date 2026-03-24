@@ -101,6 +101,11 @@ impl Builder {
         self
     }
 
+    pub fn trigger_panic_to_output(self) -> Self {
+        trigger_panic();
+        self
+    }
+
     pub fn try_init(self) -> Result<(), &'static str> {
         let logger = self.build();
 
@@ -195,6 +200,34 @@ impl Logger {
         // Flush the underlying writer's buffer
         let _ = self.writer.flush();
     }
+}
+
+// ================
+// Panic trigger
+// ================
+
+fn trigger_panic() {
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(logger) = crate::Logger::get() {
+            let (file, _line) = match info.location() {
+                Some(loc) => (loc.file(), loc.line()),
+                None => ("unknown", 0),
+            };
+
+            let msg = format_args!("panic: {}", info);
+
+            let mut builder = LogMessage::builder();
+
+            builder
+                .level(LogLevel::Debug)
+                .target(file)
+                .module(Some(file))
+                .msg(msg);
+
+            logger.log_msg(&builder.build());
+            logger.flush();
+        }
+    }))
 }
 
 // ================
