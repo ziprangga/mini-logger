@@ -5,11 +5,19 @@ edition = "2024"
 authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
 
-# [features]
-# default = ["console"]
-# all = ["console", "buffer"]
-# console = []
-# buffer = []
+[features]
+# Default feature: always enable log-control unless explicitly disabled
+default = ["log-control"]
+# Enables logger integration with the panic hook
+panic-hook = []
+# Enables runtime control of the logger (turn it on/off programmatically)
+runtime-control = []
+# Enables manual, compile-time control of the logger.
+# Useful in development for explicitly enabling or disabling the logger.
+# Activated by default, so the logger is always on.
+# To disable by default, set `default-features = false` in the dependency's Cargo.toml.
+# Logger can then be enabled or disabled using `--features mini-logger/log-control`.
+log-control = []
 
 [dependencies]
 chrono = "0.4.44"

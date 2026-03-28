@@ -12,10 +12,19 @@ pub use writer::*;
 
 use std::sync::OnceLock;
 
+#[cfg(feature = "runtime-control")]
+use std::sync::atomic::{AtomicBool, Ordering};
+
 static LOGGER: OnceLock<Logger> = OnceLock::new();
 
+#[cfg(feature = "log-control")]
 fn set_logger(logger: Logger) -> Result<(), &'static str> {
     LOGGER.set(logger).map_err(|_| "Logger already initialized")
+}
+
+#[cfg(not(feature = "log-control"))]
+fn set_logger(_logger: Logger) -> Result<(), &'static str> {
+    Ok(())
 }
 
 fn get_logger() -> Option<&'static Logger> {
@@ -23,7 +32,11 @@ fn get_logger() -> Option<&'static Logger> {
 }
 
 fn try_init() -> Result<(), &'static str> {
-    Builder::new().env_default().output_stdout().try_init()
+    Builder::new()
+        .env_default()
+        .trigger_panic_to_output()
+        .output_stdout()
+        .try_init()
 }
 
 pub fn init() {
@@ -129,6 +142,8 @@ impl Builder {
             writer: self.writer.build(),
             filter: self.filter.build(),
             format: self.format.build(),
+            #[cfg(feature = "runtime-control")]
+            active: AtomicBool::new(true),
         }
     }
 }
@@ -137,11 +152,28 @@ pub struct Logger {
     writer: writer::Writer,
     filter: filter::Filter,
     format: format::Format,
+    #[cfg(feature = "runtime-control")]
+    active: AtomicBool,
 }
 
 impl Logger {
     pub fn get() -> Option<&'static Self> {
         get_logger()
+    }
+
+    #[cfg(feature = "runtime-control")]
+    pub fn enable(&self) {
+        self.active.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg(feature = "runtime-control")]
+    pub fn disable(&self) {
+        self.active.store(false, Ordering::Relaxed);
+    }
+
+    #[cfg(feature = "runtime-control")]
+    pub fn is_active(&self) -> bool {
+        self.active.load(Ordering::Relaxed)
     }
 
     pub fn get_max_level(&self) -> LogLevel {
@@ -153,6 +185,11 @@ impl Logger {
     }
 
     pub fn log_msg(&self, record_msg: &LogMessage<'_>) {
+        #[cfg(feature = "runtime-control")]
+        if !self.is_active() {
+            return;
+        }
+
         if !self.matches(record_msg) {
             return;
         }
@@ -205,7 +242,7 @@ impl Logger {
 // ================
 // Panic trigger
 // ================
-
+#[cfg(feature = "panic-hook")]
 fn trigger_panic() {
     std::panic::set_hook(Box::new(move |info| {
         if let Some(logger) = crate::Logger::get() {
@@ -229,6 +266,9 @@ fn trigger_panic() {
         }
     }))
 }
+
+#[cfg(not(feature = "panic-hook"))]
+fn trigger_panic() {}
 
 // ================
 // MACRO
@@ -262,6 +302,7 @@ pub fn log_build<'a>(
     log_reduce_size(logger, level, target, module, msg)
 }
 
+#[cfg(feature = "log-control")]
 #[macro_export]
 macro_rules! log {
     // logger + target
@@ -285,6 +326,31 @@ macro_rules! log {
     ($lvl:expr, $($arg:tt)+) => {
         $crate::log!(target: module_path!(), $lvl, $($arg)+)
     };
+}
+
+#[cfg(not(feature = "log-control"))]
+#[macro_export]
+macro_rules! log {
+    ($lvl:expr, $($arg:tt)+) => {{
+        let _ = &$lvl;
+        let _ = format_args!($($arg)+);
+    }};
+    (target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
+        let _ = &$target;
+        let _ = &$lvl;
+        let _ = format_args!($($arg)+);
+    }};
+    (logger: $logger:expr, $lvl:expr, $($arg:tt)+) => {{
+        let _ = &$logger;
+        let _ = &$lvl;
+        let _ = format_args!($($arg)+);
+    }};
+    (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
+        let _ = &$logger;
+        let _ = &$target;
+        let _ = &$lvl;
+        let _ = format_args!($($arg)+);
+    }};
 }
 
 // Level-specific macros
