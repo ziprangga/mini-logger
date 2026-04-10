@@ -1,6 +1,5 @@
-use crate::filter::{Filter, FilterBuilder, FilterEnv};
+use crate::filter::{Filter, FilterBuilder, FilterEnv, FilterLevel};
 use crate::format::{Format, FormatBuilder};
-use crate::record::FilterLevel;
 use crate::record::RecMessage;
 use crate::style::ColorMode;
 use crate::writer::{BufferFormatter, Writer, WriterBuilder, try_with_buf_formatter_slot};

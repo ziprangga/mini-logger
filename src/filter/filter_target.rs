@@ -1,4 +1,4 @@
-use crate::record::FilterLevel;
+use crate::filter::FilterLevel;
 
 #[derive(Clone, Debug)]
 pub struct FilterTarget {

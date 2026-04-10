@@ -1,4 +1,4 @@
-use super::FilterLevel;
+use crate::filter::FilterLevel;
 
 #[derive(Clone, Debug)]
 pub struct RecMessage<'a> {

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::io::{self, Write};
 
-use crate::record::FilterLevel;
+use crate::filter::FilterLevel;
 use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;

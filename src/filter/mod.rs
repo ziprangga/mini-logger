@@ -1,8 +1,10 @@
+mod filter_level;
 mod filter_target;
 
+pub use filter_level::FilterLevel;
 pub use filter_target::FilterTarget;
 
-use crate::record::{FilterLevel, RecMessage};
+use crate::record::RecMessage;
 
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
