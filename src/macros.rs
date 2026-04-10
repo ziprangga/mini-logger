@@ -1,10 +1,10 @@
-use crate::LogLevel;
+use crate::FilterLevel;
 use crate::Logger;
 use crate::RecMessage;
 
 fn log_reduce_size(
     logger: &Logger,
-    level: LogLevel,
+    level: FilterLevel,
     target: &str,
     module: &'static str,
     msg: std::fmt::Arguments,
@@ -22,7 +22,7 @@ fn log_reduce_size(
 
 pub fn log_build<'a>(
     logger: &Logger,
-    level: LogLevel,
+    level: FilterLevel,
     target: &str,
     module: &'static str,
     msg: std::fmt::Arguments,
@@ -36,7 +36,7 @@ macro_rules! log {
     // logger + target
     (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
         let lvl = $lvl;
-        if lvl as usize <= $crate::LogLevel::get_level() as usize {
+        if lvl as usize <= $crate::FilterLevel::get_level() as usize {
             $crate::log_build($logger, lvl, $target, module_path!(), format_args!($($arg)+));
         }
     }};
@@ -83,12 +83,12 @@ macro_rules! log {
 
 // Level-specific macros
 #[macro_export]
-macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Error, $($arg)+) }; }
+macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Error, $($arg)+) }; }
 #[macro_export]
-macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Warn, $($arg)+) }; }
+macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Warn, $($arg)+) }; }
 #[macro_export]
-macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Info, $($arg)+) }; }
+macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Info, $($arg)+) }; }
 #[macro_export]
-macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Debug, $($arg)+) }; }
+macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Debug, $($arg)+) }; }
 #[macro_export]
-macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::LogLevel::Trace, $($arg)+) }; }
+macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Trace, $($arg)+) }; }

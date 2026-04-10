@@ -2,7 +2,7 @@ mod filter_target;
 
 pub use filter_target::FilterTarget;
 
-use crate::record::{LogLevel, RecMessage};
+use crate::record::{FilterLevel, RecMessage};
 
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
@@ -11,12 +11,12 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn max_level(&self) -> LogLevel {
+    pub fn max_level(&self) -> FilterLevel {
         self.filter_target
             .iter()
             .map(|d| d.level())
             .max()
-            .unwrap_or(LogLevel::Off)
+            .unwrap_or(FilterLevel::Off)
     }
 
     pub fn matches(&self, record_msg: &RecMessage<'_>) -> bool {
@@ -37,8 +37,8 @@ impl Filter {
         }
     }
 
-    fn enabled(&self, target: &str, log_level: &LogLevel) -> bool {
-        let mut level = LogLevel::Off;
+    fn enabled(&self, target: &str, log_level: &FilterLevel) -> bool {
+        let mut level = FilterLevel::Off;
 
         for d in &self.filter_target {
             if let Some(lvl) = d.level_for(target) {
@@ -74,11 +74,7 @@ impl FilterBuilder {
         }
     }
 
-    pub fn filter_target(&mut self, module: Option<&str>, level: LogLevel) -> &mut Self {
-        // self.insert_filter(FilterTarget {
-        //     target: module.map(|s| s.to_owned()),
-        //     level,
-        // });
+    pub fn filter_target(&mut self, module: Option<&str>, level: FilterLevel) -> &mut Self {
         self.insert_filter(FilterTarget::new(module.map(|s| s.to_owned()), level));
         self
     }
@@ -92,11 +88,7 @@ impl FilterBuilder {
         let mut filter_target = Vec::new();
 
         if self.filter.filter_target.is_empty() {
-            // filter_target.push(FilterTarget {
-            //     target: None,
-            //     level: LogLevel::Error,
-            // });
-            filter_target.push(FilterTarget::new(None, LogLevel::Error));
+            filter_target.push(FilterTarget::new(None, FilterLevel::Error));
         } else {
             filter_target = std::mem::take(&mut self.filter.filter_target);
             filter_target.sort_by(|a, b| {
@@ -154,7 +146,7 @@ impl<'a> FilterEnv<'a> {
                 None => ("", first),
             };
 
-            let level = level_str.parse::<LogLevel>().unwrap_or(LogLevel::Off);
+            let level = level_str.parse::<FilterLevel>().unwrap_or(FilterLevel::Off);
 
             let module_opt = if module.is_empty() {
                 None

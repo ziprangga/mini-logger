@@ -1,6 +1,6 @@
 use crate::filter::{Filter, FilterBuilder, FilterEnv};
 use crate::format::{Format, FormatBuilder};
-use crate::record::LogLevel;
+use crate::record::FilterLevel;
 use crate::record::RecMessage;
 use crate::style::ColorMode;
 use crate::writer::{BufferFormatter, Writer, WriterBuilder, try_with_buf_formatter_slot};
@@ -62,7 +62,7 @@ impl Builder {
         self
     }
 
-    pub fn filter(mut self, module: Option<&str>, level: LogLevel) -> Self {
+    pub fn filter(mut self, module: Option<&str>, level: FilterLevel) -> Self {
         self.filter.filter_target(module, level);
         self
     }
@@ -121,7 +121,7 @@ impl Builder {
         let result = set_logger(logger);
 
         if result.is_ok() {
-            LogLevel::set_level(max_level);
+            FilterLevel::set_level(max_level);
         }
 
         result
@@ -171,7 +171,7 @@ impl Logger {
         self.active.load(Ordering::Relaxed)
     }
 
-    pub fn get_max_level(&self) -> LogLevel {
+    pub fn get_max_level(&self) -> FilterLevel {
         self.filter.max_level()
     }
 
@@ -251,7 +251,7 @@ fn trigger_panic() {
             let mut builder = RecMessage::builder();
 
             builder
-                .level(LogLevel::Debug)
+                .level(FilterLevel::Debug)
                 .target(file)
                 .module(Some(file))
                 .msg(msg);

@@ -9,7 +9,7 @@ fn default() {
     info!("This use default");
 }
 
-// custom use ".filter(Some("sample::test_mini_logger"), LogLevel::Debug)" to configuration level and target
+// custom use ".filter(Some("sample::test_mini_logger"), FilterLevel::Debug)" to configuration level and target
 // this configuration can be combine using ".env_default()" or ".from_env",
 // Builder::new() .env_default() .filter(Some("my_crate::submodule"), FilterLevel::Info) .output_stdout() .init();
 // Both apply.
@@ -20,15 +20,15 @@ fn default() {
 
 fn custom() {
     mini_logger::Builder::new()
-        .filter(Some("sample::test_mini_logger"), LogLevel::Debug)
+        .filter(Some("sample::test_mini_logger"), FilterLevel::Debug)
         .format_custom(|buf, message| {
             let color = match message.level() {
-                LogLevel::Off => Color::Reset,
-                LogLevel::Error => Color::Red,
-                LogLevel::Warn => Color::Yellow,
-                LogLevel::Info => Color::Green,
-                LogLevel::Debug => Color::Blue,
-                LogLevel::Trace => Color::Blue,
+                FilterLevel::Off => Color::Reset,
+                FilterLevel::Error => Color::Red,
+                FilterLevel::Warn => Color::Yellow,
+                FilterLevel::Info => Color::Green,
+                FilterLevel::Debug => Color::Blue,
+                FilterLevel::Trace => Color::Blue,
             };
             let level_str = message.level().as_str();
             let ts = buf.timestamp();

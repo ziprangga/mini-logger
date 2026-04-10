@@ -1,13 +1,13 @@
-use crate::record::LogLevel;
+use crate::record::FilterLevel;
 
 #[derive(Clone, Debug)]
 pub struct FilterTarget {
     target: Option<String>,
-    level: LogLevel,
+    level: FilterLevel,
 }
 
 impl FilterTarget {
-    pub fn new(target: Option<String>, level: LogLevel) -> Self {
+    pub fn new(target: Option<String>, level: FilterLevel) -> Self {
         Self { target, level }
     }
 
@@ -15,11 +15,11 @@ impl FilterTarget {
         self.target.as_deref()
     }
 
-    pub fn level(&self) -> LogLevel {
+    pub fn level(&self) -> FilterLevel {
         self.level
     }
 
-    pub fn level_for(&self, target: &str) -> Option<LogLevel> {
+    pub fn level_for(&self, target: &str) -> Option<FilterLevel> {
         match &self.target {
             Some(name) => {
                 if target.starts_with(name) {

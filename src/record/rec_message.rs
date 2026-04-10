@@ -1,8 +1,8 @@
-use super::LogLevel;
+use super::FilterLevel;
 
 #[derive(Clone, Debug)]
 pub struct RecMessage<'a> {
-    level: LogLevel,
+    level: FilterLevel,
     target: &'a str,
     module: Option<&'a str>,
     msg: std::fmt::Arguments<'a>,
@@ -15,7 +15,7 @@ impl<'a> RecMessage<'a> {
     }
 
     #[inline]
-    pub fn level(&self) -> LogLevel {
+    pub fn level(&self) -> FilterLevel {
         self.level
     }
 
@@ -38,7 +38,7 @@ impl<'a> RecMessage<'a> {
 impl Default for RecMessage<'_> {
     fn default() -> Self {
         Self {
-            level: LogLevel::default(),
+            level: FilterLevel::default(),
             target: "",
             module: None,
             msg: format_args!(""),
@@ -60,7 +60,7 @@ impl<'a> RecMessageBuilder<'a> {
     }
 
     #[inline]
-    pub fn level(&mut self, level: LogLevel) -> &mut Self {
+    pub fn level(&mut self, level: FilterLevel) -> &mut Self {
         self.record_msg.level = level;
         self
     }

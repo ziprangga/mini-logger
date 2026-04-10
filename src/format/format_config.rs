@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::io::{self, Write};
 
-use crate::record::LogLevel;
+use crate::record::FilterLevel;
 use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
@@ -110,12 +110,12 @@ impl FormatLayoutWriter<'_> {
 
         use crate::style::Color;
         let color = match record_msg.level() {
-            LogLevel::Off => Color::Reset,
-            LogLevel::Error => Color::Red,
-            LogLevel::Warn => Color::Yellow,
-            LogLevel::Info => Color::Green,
-            LogLevel::Debug => Color::Blue,
-            LogLevel::Trace => Color::Blue,
+            FilterLevel::Off => Color::Reset,
+            FilterLevel::Error => Color::Red,
+            FilterLevel::Warn => Color::Yellow,
+            FilterLevel::Info => Color::Green,
+            FilterLevel::Debug => Color::Blue,
+            FilterLevel::Trace => Color::Blue,
         };
         let level_str = record_msg.level().as_str();
 

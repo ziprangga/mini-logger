@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-static LOG_LEVEL: AtomicUsize = AtomicUsize::new(LogLevel::Off as usize);
+static FILTER_LEVEL: AtomicUsize = AtomicUsize::new(FilterLevel::Off as usize);
 
 #[repr(usize)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum LogLevel {
+pub enum FilterLevel {
     Off = 0,
     Error = 1,
     Warn = 2,
@@ -13,67 +13,67 @@ pub enum LogLevel {
     Trace = 5,
 }
 
-impl LogLevel {
+impl FilterLevel {
     #[inline]
     pub fn set_level(self) {
-        LOG_LEVEL.store(self as usize, Ordering::Relaxed);
+        FILTER_LEVEL.store(self as usize, Ordering::Relaxed);
     }
 
     #[inline]
-    pub fn get_level() -> LogLevel {
-        match LOG_LEVEL.load(Ordering::Relaxed) {
-            1 => LogLevel::Error,
-            2 => LogLevel::Warn,
-            3 => LogLevel::Info,
-            4 => LogLevel::Debug,
-            5 => LogLevel::Trace,
-            _ => LogLevel::Off,
+    pub fn get_level() -> FilterLevel {
+        match FILTER_LEVEL.load(Ordering::Relaxed) {
+            1 => FilterLevel::Error,
+            2 => FilterLevel::Warn,
+            3 => FilterLevel::Info,
+            4 => FilterLevel::Debug,
+            5 => FilterLevel::Trace,
+            _ => FilterLevel::Off,
         }
     }
 
     #[inline]
     pub fn from_usize(val: usize) -> Self {
         match val {
-            1 => LogLevel::Error,
-            2 => LogLevel::Warn,
-            3 => LogLevel::Info,
-            4 => LogLevel::Debug,
-            5 => LogLevel::Trace,
-            _ => LogLevel::Off,
+            1 => FilterLevel::Error,
+            2 => FilterLevel::Warn,
+            3 => FilterLevel::Info,
+            4 => FilterLevel::Debug,
+            5 => FilterLevel::Trace,
+            _ => FilterLevel::Off,
         }
     }
 
     #[inline]
     pub fn as_str(&self) -> &'static str {
         match self {
-            LogLevel::Off => "OFF",
-            LogLevel::Error => "ERROR",
-            LogLevel::Warn => "WARN",
-            LogLevel::Info => "INFO",
-            LogLevel::Debug => "DEBUG",
-            LogLevel::Trace => "TRACE",
+            FilterLevel::Off => "OFF",
+            FilterLevel::Error => "ERROR",
+            FilterLevel::Warn => "WARN",
+            FilterLevel::Info => "INFO",
+            FilterLevel::Debug => "DEBUG",
+            FilterLevel::Trace => "TRACE",
         }
     }
 }
 
-impl std::str::FromStr for LogLevel {
+impl std::str::FromStr for FilterLevel {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "off" => Ok(LogLevel::Off),
-            "error" => Ok(LogLevel::Error),
-            "warn" | "warning" => Ok(LogLevel::Warn),
-            "info" => Ok(LogLevel::Info),
-            "debug" => Ok(LogLevel::Debug),
-            "trace" => Ok(LogLevel::Trace),
+            "off" => Ok(FilterLevel::Off),
+            "error" => Ok(FilterLevel::Error),
+            "warn" | "warning" => Ok(FilterLevel::Warn),
+            "info" => Ok(FilterLevel::Info),
+            "debug" => Ok(FilterLevel::Debug),
+            "trace" => Ok(FilterLevel::Trace),
             _ => Err(()),
         }
     }
 }
 
-impl Default for LogLevel {
+impl Default for FilterLevel {
     fn default() -> Self {
-        LogLevel::Debug
+        FilterLevel::Debug
     }
 }
