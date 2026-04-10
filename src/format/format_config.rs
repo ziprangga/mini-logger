@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use std::io::{self, Write};
 
-use crate::log_config::LogLevel;
-use crate::log_config::LogMessage;
+use crate::record::LogLevel;
+use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
 
@@ -34,7 +34,7 @@ impl FormatConfig {
     pub fn format_write_layout(
         &self,
         buf_formatter: &mut BufferFormatter,
-        record_msg: &LogMessage<'_>,
+        record_msg: &RecMessage<'_>,
     ) -> io::Result<()> {
         let fmt = FormatLayoutWriter {
             format_config: self,
@@ -65,7 +65,7 @@ struct FormatLayoutWriter<'a> {
 
 impl FormatLayoutWriter<'_> {
     #[inline]
-    pub fn write(mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+    pub fn write(mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         self.write_timestamp()?;
         self.write_level(record_msg)?;
         self.write_target(record_msg)?;
@@ -103,7 +103,7 @@ impl FormatLayoutWriter<'_> {
         }
     }
 
-    fn write_level(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+    fn write_level(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.level {
             return Ok(());
         }
@@ -127,7 +127,7 @@ impl FormatLayoutWriter<'_> {
         ))
     }
 
-    fn write_target(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+    fn write_target(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.target {
             return Ok(());
         }
@@ -140,7 +140,7 @@ impl FormatLayoutWriter<'_> {
         self.write_header_value(target)
     }
 
-    fn write_module(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+    fn write_module(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.module_path {
             return Ok(());
         }
@@ -158,7 +158,7 @@ impl FormatLayoutWriter<'_> {
         Ok(())
     }
 
-    fn write_args(&mut self, record_msg: &LogMessage<'_>) -> io::Result<()> {
+    fn write_args(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         write!(self.buf_formatter, "{}\n", record_msg.msg())
     }
 }

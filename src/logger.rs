@@ -1,7 +1,7 @@
 use crate::filter::{Filter, FilterBuilder, FilterEnv};
 use crate::format::{Format, FormatBuilder};
-use crate::log_config::LogLevel;
-use crate::log_config::LogMessage;
+use crate::record::LogLevel;
+use crate::record::RecMessage;
 use crate::style::ColorMode;
 use crate::writer::{BufferFormatter, Writer, WriterBuilder, try_with_buf_formatter_slot};
 
@@ -89,7 +89,7 @@ impl Builder {
 
     pub fn format_custom<F>(mut self, format: F) -> Self
     where
-        F: Fn(&mut BufferFormatter, &LogMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
+        F: Fn(&mut BufferFormatter, &RecMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
     {
         self.format.format_custom(format);
         self
@@ -175,11 +175,11 @@ impl Logger {
         self.filter.max_level()
     }
 
-    pub fn matches(&self, record_msg: &LogMessage<'_>) -> bool {
+    pub fn matches(&self, record_msg: &RecMessage<'_>) -> bool {
         self.filter.matches(record_msg)
     }
 
-    pub fn rec_msg(&self, record_msg: &LogMessage<'_>) {
+    pub fn rec_msg(&self, record_msg: &RecMessage<'_>) {
         #[cfg(feature = "runtime-control")]
         if !self.is_active() {
             return;
@@ -248,7 +248,7 @@ fn trigger_panic() {
 
             let msg = format_args!("panic: {}", info);
 
-            let mut builder = LogMessage::builder();
+            let mut builder = RecMessage::builder();
 
             builder
                 .level(LogLevel::Debug)

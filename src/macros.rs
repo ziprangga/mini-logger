@@ -1,6 +1,6 @@
 use crate::LogLevel;
-use crate::LogMessage;
 use crate::Logger;
+use crate::RecMessage;
 
 fn log_reduce_size(
     logger: &Logger,
@@ -9,7 +9,7 @@ fn log_reduce_size(
     module: &'static str,
     msg: std::fmt::Arguments,
 ) {
-    let mut builder = LogMessage::builder();
+    let mut builder = RecMessage::builder();
 
     builder
         .level(level)

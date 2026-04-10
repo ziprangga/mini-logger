@@ -1,17 +1,17 @@
 use super::LogLevel;
 
 #[derive(Clone, Debug)]
-pub struct LogMessage<'a> {
+pub struct RecMessage<'a> {
     level: LogLevel,
     target: &'a str,
     module: Option<&'a str>,
     msg: std::fmt::Arguments<'a>,
 }
 
-impl<'a> LogMessage<'a> {
+impl<'a> RecMessage<'a> {
     #[inline]
-    pub fn builder() -> LogMessageBuilder<'a> {
-        LogMessageBuilder::new()
+    pub fn builder() -> RecMessageBuilder<'a> {
+        RecMessageBuilder::new()
     }
 
     #[inline]
@@ -35,7 +35,7 @@ impl<'a> LogMessage<'a> {
     }
 }
 
-impl Default for LogMessage<'_> {
+impl Default for RecMessage<'_> {
     fn default() -> Self {
         Self {
             level: LogLevel::default(),
@@ -47,49 +47,49 @@ impl Default for LogMessage<'_> {
 }
 
 #[derive(Clone, Debug)]
-pub struct LogMessageBuilder<'a> {
-    log_message: LogMessage<'a>,
+pub struct RecMessageBuilder<'a> {
+    record_msg: RecMessage<'a>,
 }
 
-impl<'a> LogMessageBuilder<'a> {
+impl<'a> RecMessageBuilder<'a> {
     #[inline]
     pub fn new() -> Self {
         Self {
-            log_message: LogMessage::default(),
+            record_msg: RecMessage::default(),
         }
     }
 
     #[inline]
     pub fn level(&mut self, level: LogLevel) -> &mut Self {
-        self.log_message.level = level;
+        self.record_msg.level = level;
         self
     }
 
     #[inline]
     pub fn target(&mut self, target: &'a str) -> &mut Self {
-        self.log_message.target = target;
+        self.record_msg.target = target;
         self
     }
 
     #[inline]
     pub fn module(&mut self, module: Option<&'a str>) -> &mut Self {
-        self.log_message.module = module;
+        self.record_msg.module = module;
         self
     }
 
     #[inline]
     pub fn msg(&mut self, msg: std::fmt::Arguments<'a>) -> &mut Self {
-        self.log_message.msg = msg;
+        self.record_msg.msg = msg;
         self
     }
 
     #[inline]
-    pub fn build(&self) -> LogMessage<'a> {
-        self.log_message.clone()
+    pub fn build(&self) -> RecMessage<'a> {
+        self.record_msg.clone()
     }
 }
 
-impl Default for LogMessageBuilder<'_> {
+impl Default for RecMessageBuilder<'_> {
     fn default() -> Self {
         Self::new()
     }
