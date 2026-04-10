@@ -1,6 +1,7 @@
 use mini_logger::*;
 use std::io::Write;
 
+// default use the env "RUST_LOG" to configuration level and target
 fn default() {
     mini_logger::init();
 
@@ -8,9 +9,18 @@ fn default() {
     info!("This use default");
 }
 
+// custom use ".filter(Some("sample::test_mini_logger"), LogLevel::Debug)" to configuration level and target
+// this configuration can be combine using ".env_default()" or ".from_env",
+// Builder::new() .env_default() .filter(Some("my_crate::submodule"), FilterLevel::Info) .output_stdout() .init();
+// Both apply.
+// env_default() → loads rules from "RUST_LOG"
+// .filter(Some(...), ...) → adds/overrides for that target
+// Final filter = env rules + your manual rule
+// If same target appears in both → last one wins ".filter(Some(..), ..)"
+
 fn custom() {
     mini_logger::Builder::new()
-        .env_default()
+        .filter(Some("sample::test_mini_logger"), LogLevel::Debug)
         .format_custom(|buf, message| {
             let color = match message.level() {
                 LogLevel::Off => Color::Reset,
