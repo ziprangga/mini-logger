@@ -1,4 +1,4 @@
-use crate::filter::{Filter, FilterBuilder, FilterEnv, FilterLevel};
+use crate::filter::{Filter, FilterBuilder, FilterLevel};
 use crate::format::{Format, FormatBuilder};
 use crate::record::RecMessage;
 use crate::style::ColorMode;
@@ -49,15 +49,25 @@ impl Builder {
         Self::default()
     }
 
+    // pub fn env_default(mut self) -> Self {
+    //     let mut env_filter = FilterEnv::new(&mut self.filter);
+    //     env_filter.parse_env_var("RUST_LOG");
+    //     self
+    // }
+
+    // pub fn from_env(mut self, var_name: &str) -> Self {
+    //     let mut env_filter = FilterEnv::new(&mut self.filter);
+    //     env_filter.parse_env_var(var_name);
+    //     self
+    // }
+
     pub fn env_default(mut self) -> Self {
-        let mut env_filter = FilterEnv::new(&mut self.filter);
-        env_filter.parse_env_var("RUST_LOG");
+        self.filter.filter_env("RUST_LOG");
         self
     }
 
     pub fn from_env(mut self, var_name: &str) -> Self {
-        let mut env_filter = FilterEnv::new(&mut self.filter);
-        env_filter.parse_env_var(var_name);
+        self.filter.filter_env(var_name);
         self
     }
 

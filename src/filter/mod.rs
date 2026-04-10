@@ -1,6 +1,8 @@
+mod filter_env;
 mod filter_level;
 mod filter_target;
 
+pub use filter_env::FilterEnv;
 pub use filter_level::FilterLevel;
 pub use filter_target::FilterTarget;
 
@@ -86,6 +88,15 @@ impl FilterBuilder {
         self
     }
 
+    pub fn filter_env(&mut self, var_name: &str) -> &mut Self {
+        if let Some(env) = FilterEnv::from_env_var(var_name) {
+            for filter_target in env.parse_filter_string() {
+                self.insert_filter(filter_target);
+            }
+        }
+        self
+    }
+
     pub fn build(mut self) -> Filter {
         let mut filter_target = Vec::new();
 
@@ -110,54 +121,5 @@ impl FilterBuilder {
 impl Default for FilterBuilder {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub struct FilterEnv<'a> {
-    builder: &'a mut FilterBuilder,
-}
-
-impl<'a> FilterEnv<'a> {
-    pub fn new(builder: &'a mut FilterBuilder) -> Self {
-        Self { builder }
-    }
-
-    pub fn parse_env_var(&mut self, var_name: &str) -> &mut Self {
-        if let Ok(env_val) = std::env::var(var_name) {
-            self.parse_filter_string(&env_val);
-        }
-        self
-    }
-
-    pub fn parse_filter_string(&mut self, s: &str) -> &mut Self {
-        for directive in s.split(',') {
-            let directive = directive.trim();
-            if directive.is_empty() {
-                continue;
-            }
-
-            // Split by '='
-            let mut parts = directive.splitn(2, '=');
-            let first = parts.next().unwrap().trim();
-            let second = parts.next().map(|s| s.trim());
-
-            let (module, level_str) = match second {
-                // module=level
-                Some(lvl) => (first, lvl),
-                // bare level → global
-                None => ("", first),
-            };
-
-            let level = level_str.parse::<FilterLevel>().unwrap_or(FilterLevel::Off);
-
-            let module_opt = if module.is_empty() {
-                None
-            } else {
-                Some(module)
-            };
-
-            self.builder.filter_target(module_opt, level);
-        }
-        self
     }
 }
