@@ -35,8 +35,7 @@ use mini_logger::{Builder, LogLevel};
 Builder::new()
     .env_default()
     .output_stdout()
-    .try_init()
-    .unwrap();
+    .init();
 ```
 
 ### Logging messages
