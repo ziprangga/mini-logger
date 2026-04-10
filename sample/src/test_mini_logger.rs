@@ -17,7 +17,6 @@ fn default() {
 // .filter(Some(...), ...) → adds/overrides for that target
 // Final filter = env rules + your manual rule
 // If same target appears in both → last one wins ".filter(Some(..), ..)"
-
 fn custom() {
     mini_logger::Builder::new()
         .filter(Some("sample::test_mini_logger"), FilterLevel::Debug)

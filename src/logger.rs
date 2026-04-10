@@ -49,18 +49,6 @@ impl Builder {
         Self::default()
     }
 
-    // pub fn env_default(mut self) -> Self {
-    //     let mut env_filter = FilterEnv::new(&mut self.filter);
-    //     env_filter.parse_env_var("RUST_LOG");
-    //     self
-    // }
-
-    // pub fn from_env(mut self, var_name: &str) -> Self {
-    //     let mut env_filter = FilterEnv::new(&mut self.filter);
-    //     env_filter.parse_env_var(var_name);
-    //     self
-    // }
-
     pub fn env_default(mut self) -> Self {
         self.filter.filter_env("RUST_LOG");
         self
