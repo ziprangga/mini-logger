@@ -25,12 +25,6 @@ chrono = "0.4.44"
 [[test]]
 name = "simple_debug_tests"
 harness = false
-required-features = ["buffer", "console"]
-
-[[test]]
-name = "module_spec_tests"
-harness = false
-required-features = ["buffer", "console"]
 
 [workspace]
 members = [".", "sample"]

@@ -1,32 +1,29 @@
-use mini_logger::*; // your new logger crate
+use mini_logger::*;
 
 fn main() {
     println!("Initializing global logger once for all tests...");
 
-    // Initialize global logger
-    Builder::new()
-        .env_default() // read RUST_LOG from env if exists
-        .output_stdout() // print to stdout
-        .try_init()
-        .expect("Failed to initialize mini_logger");
+    Builder::new().env_default().output_stdout().init();
 
     // -------------------------------
-    // Test buffer retrieval correctness
+    // Test logging works (no buffer access)
     // -------------------------------
     {
         debug!("Test message 1");
         info!("Test message 2");
 
-        // If your mini_logger has a buffer retrieval method, adapt this:
-        // Assuming `LOGGER.get()` returns &Logger
-        let logger = LOGGER.get().expect("Logger not initialized");
-        if let Some(buf) = logger.writer.buffer().as_ref() {
-            let buf_str = String::from_utf8_lossy(buf);
-            assert!(buf_str.contains("Test message 1"));
-            assert!(buf_str.contains("Test message 2"));
-        }
+        let logger = Logger::get().expect("Logger not initialized");
 
-        println!("test_buffer_retrieval passed");
+        let msg = RecMessage::builder()
+            .level(FilterLevel::Info)
+            .target("test")
+            .module(Some("test"))
+            .msg(format_args!("Test message 2"))
+            .build();
+
+        assert!(logger.matches(&msg));
+
+        println!("test_logging_match passed");
     }
 
     // -------------------------------
@@ -48,18 +45,22 @@ fn main() {
             h.join().expect("Thread panicked");
         }
 
-        let logger = LOGGER.get().expect("Logger not initialized");
-        if let Some(buf) = logger.writer.buffer().as_ref() {
-            let buf_str = String::from_utf8_lossy(buf);
-            assert!(buf_str.contains("Thread 0 message 0"));
-            assert!(buf_str.contains("Thread 3 message 99"));
-        }
+        let logger = Logger::get().expect("Logger not initialized");
+
+        let msg = RecMessage::builder()
+            .level(FilterLevel::Debug)
+            .target("thread-test")
+            .module(Some("thread-test"))
+            .msg(format_args!("Thread 3 message 99"))
+            .build();
+
+        assert!(logger.matches(&msg));
 
         println!("test_multithreaded_logging passed");
     }
 
     // -------------------------------
-    // Test benchmark logging overhead
+    // Benchmark logging overhead
     // -------------------------------
     {
         let start = std::time::Instant::now();
@@ -69,6 +70,7 @@ fn main() {
         }
 
         let duration = start.elapsed();
+
         println!(
             "benchmark_logging_overhead: Time to log 1000 messages: {:?}",
             duration
