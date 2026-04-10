@@ -37,6 +37,15 @@ Builder::new()
     .output_stdout()
     .init();
 ```
+or
+
+```rust    
+// Same initialization, but non-panicking (skip init if it already initialize)
+Builder::new()
+    .env_default()
+    .output_stdout()
+    .try_init();
+```
 
 ### Logging messages
 
