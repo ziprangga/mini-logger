@@ -22,9 +22,5 @@ log-control = []
 [dependencies]
 chrono = "0.4.44"
 
-[[test]]
-name = "simple_debug_tests"
-harness = false
-
 [workspace]
 members = [".", "sample"]
