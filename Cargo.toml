@@ -4,6 +4,11 @@ version = "0.1.1"
 edition = "2024"
 authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
+description = "Lightweight, configurable Rust logging crate with optional runtime and compile-time control, panic hook integration, and minimal overhead"
+repository = "https://github.com/ziprangga/simple-status"
+readme = "README.md"
+keywords = ["logging", "logger", "debug", "tracing", "runtime-control"]
+categories = ["utilities", "development-tools::debugging", "development-tools::profiling", "rust-patterns"]
 
 [features]
 # Default feature: always enable log-control unless explicitly disabled
