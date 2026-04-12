@@ -15,6 +15,17 @@ Inspired by env_logger and log. Implemented as a lightweight custom logger based
 * Environment-variable-based filtering (`RUST_LOG`) or custom filters per module.
 * Simple macros for levels: `error!`, `warn!`, `info!`, `debug!`, `trace!`.
 
+## Example
+
+A complete working example is included in the [`sample`](./sample) crate.
+
+### Run the example
+
+```bash
+cd sample
+cargo run
+```
+
 ## Installation
 
 Add to your `Cargo.toml`:
@@ -53,7 +64,7 @@ Builder::new()
 info!("This is an info message");
 warn!("This is a warning");
 error!("This is an error");
-debug!("Debug details: {}", 42);
+debug!("Debug details: {}", 26);
 trace!("Trace output here");
 ```
 
