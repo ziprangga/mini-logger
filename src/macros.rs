@@ -1,43 +1,32 @@
-use crate::FilterLevel;
-use crate::Logger;
-use crate::RecMessage;
-
-fn log_reduce_size(
-    logger: &Logger,
-    level: FilterLevel,
-    target: &str,
-    module: &'static str,
-    msg: std::fmt::Arguments,
-) {
-    let mut builder = RecMessage::builder();
-
-    builder
-        .level(level)
-        .target(target)
-        .module(Some(module))
-        .msg(msg);
-
-    logger.rec_msg(&builder.build());
-}
-
-pub fn log_build<'a>(
-    logger: &Logger,
-    level: FilterLevel,
-    target: &str,
-    module: &'static str,
-    msg: std::fmt::Arguments,
-) {
-    log_reduce_size(logger, level, target, module, msg)
+// # Internal Macro Utility
+//
+// This helper macro is strictly intended for internal crate operation
+// inside parent logging macro expansions. It must never be invoked directly
+// in downstream application code.
+//
+// It isolates level calculations, enforces single-evaluation rules for safety,
+// and yields a `(bool, FilterLevel)` tuple to successfully route around
+// local scope lifetime boundaries.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __get_level {
+    ($lvl:expr) => {{
+        let lvl = $lvl;
+        let write_log = lvl as usize <= $crate::FilterLevel::get_level() as usize;
+        (write_log, lvl)
+    }};
 }
 
 #[cfg(feature = "log-control")]
 #[macro_export]
+#[clippy::format_args]
 macro_rules! log {
     // logger + target
     (logger: $logger:expr, target: $target:expr, $lvl:expr, $($arg:tt)+) => {{
-        let lvl = $lvl;
-        if lvl as usize <= $crate::FilterLevel::get_level() as usize {
-            $crate::log_build($logger, lvl, $target, module_path!(), format_args!($($arg)+));
+        // Destructures the internal utility tuple to safely execute conditional filtering
+        let (write_log, lvl) = $crate::__get_level!($lvl);
+        if write_log {
+            $crate::__private_helper::log_build($logger, lvl, $target, module_path!(), format_args!($($arg)+));
         }
     }};
     // logger only
@@ -58,6 +47,7 @@ macro_rules! log {
 
 #[cfg(not(feature = "log-control"))]
 #[macro_export]
+#[clippy::format_args]
 macro_rules! log {
     ($lvl:expr, $($arg:tt)+) => {{
         let _ = &$lvl;
@@ -83,12 +73,21 @@ macro_rules! log {
 
 // Level-specific macros
 #[macro_export]
+#[clippy::format_args]
 macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Error, $($arg)+) }; }
+
 #[macro_export]
+#[clippy::format_args]
 macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Warn, $($arg)+) }; }
+
 #[macro_export]
+#[clippy::format_args]
 macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Info, $($arg)+) }; }
+
 #[macro_export]
+#[clippy::format_args]
 macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Debug, $($arg)+) }; }
+
 #[macro_export]
+#[clippy::format_args]
 macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Trace, $($arg)+) }; }

@@ -72,10 +72,10 @@ fn multi_thread() {
 }
 
 pub fn run_test_mini_logger(def: bool) {
-    if def {
-        default()
-    } else {
+    if !def {
         custom()
+    } else {
+        default()
     }
 
     error!("This is an error");
