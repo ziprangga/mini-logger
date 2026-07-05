@@ -1,10 +1,10 @@
 [package]
 name = "mini-logger"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 authors = ["ziprangga"]
 license = "MIT or Apache-2.0"
-description = "Lightweight, configurable Rust logging crate with optional runtime and compile-time control, panic hook integration, and minimal overhead"
+description = "Lightweight, configurable Rust logging crate with optional compile-time and runtime control, configurable output, and panic hook integration"
 repository = "https://github.com/ziprangga/mini-logger"
 readme = "README.md"
 keywords = ["logging", "logger", "debug", "tracing", "runtime-control"]

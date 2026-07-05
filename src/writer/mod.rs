@@ -1,3 +1,18 @@
+//! Buffered output and writing infrastructure.
+//!
+//! This module is responsible for writing formatted log records to their
+//! configured destination.
+//!
+//! The writing pipeline consists of:
+//!
+//! - [`Writer`] configures the output destination and color mode.
+//! - [`BufferFormatter`] formats log records into an in-memory buffer.
+//! - [`BufferWriter`] writes the completed buffer to the configured output.
+//! - [`Buffer`] stores the formatted bytes before they are written.
+//!
+//! Buffering allows formatting to complete before any output is written,
+//! reducing partial writes and keeping formatting independent from output.
+
 mod buffer_formatter;
 mod buffer_writer;
 
@@ -6,11 +21,15 @@ pub use buffer_writer::{Buffer, BufferWriter};
 
 use crate::style::ColorMode;
 
+/// Output destination used by the logger.
 #[derive(Default)]
 pub enum Output {
+    /// Write log records to standard output.
     #[default]
     Stdout,
+    /// Write log records to standard error.
     Stderr,
+    /// Append log records to the specified file.
     File(String),
 }
 
@@ -28,28 +47,37 @@ impl std::fmt::Debug for Output {
     }
 }
 
+/// High-level writer used by the logger.
+///
+/// Owns the configured output destination and provides buffers used
+/// during log formatting.
 #[derive(Debug, Default)]
 pub struct Writer {
     buffer_writer: BufferWriter,
 }
 
 impl Writer {
+    /// Creates a new [`WriterBuilder`].
     pub fn builder() -> WriterBuilder {
         WriterBuilder::new()
     }
 
+    /// Returns the configured color mode.
     pub fn color_mode(&self) -> ColorMode {
         self.buffer_writer.color_mode()
     }
 
+    /// Creates a new empty output buffer.
     pub fn buffer(&self) -> Buffer {
         self.buffer_writer.buffer()
     }
 
+    /// Writes the buffer to the configured output.
     pub fn print_out(&self, buf: &Buffer) -> std::io::Result<()> {
         self.buffer_writer.write_buffer(buf)
     }
 
+    /// Flushes the configured output stream.
     pub fn flush(&self) -> std::io::Result<()> {
         use std::io::Write as _;
         match self.buffer_writer.output_ref() {
@@ -63,6 +91,7 @@ impl Writer {
     }
 }
 
+/// Builder for constructing a [`Writer`].
 #[derive(Debug, Default)]
 pub struct WriterBuilder {
     writer: Writer,
@@ -97,6 +126,11 @@ impl WriterBuilder {
         self
     }
 
+    /// Builds the configured writer.
+    ///
+    /// When the color mode is [`ColorMode::Auto`], the final color mode is
+    /// determined from the selected output destination. Terminal outputs
+    /// enable colors, while file output disables them.
     pub fn build(self) -> Writer {
         let color = self.writer.color_mode();
         let output = self.writer.buffer_writer.output_take();

@@ -8,6 +8,16 @@ thread_local! {
     static BUFFER_FORMATTER: RefCell<Option<BufferFormatter>> = const {RefCell::new(None)};
 }
 
+/// Executes a closure with access to a thread-local [`BufferFormatter`] slot.
+///
+/// This slot is used to reuse a formatter per thread to avoid allocating a
+/// new buffer for every log record.
+///
+/// If the thread-local storage is unavailable (e.g. during thread shutdown),
+/// returns `None`.
+///
+/// The slot may contain an existing formatter, or be empty if this is the
+/// first log call on the thread.
 pub fn try_with_buf_formatter_slot<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut Option<BufferFormatter>) -> R,
@@ -21,6 +31,10 @@ where
         .flatten()
 }
 
+/// Formatter backed by an in-memory buffer.
+///
+/// Formatting writes into the buffer through the standard [`std::io::Write`]
+/// interface. The completed buffer can later be written by a [`Writer`].
 pub struct BufferFormatter {
     buffer: Rc<RefCell<Buffer>>,
     color_mode: ColorMode,
@@ -46,6 +60,7 @@ impl BufferFormatter {
         self.buffer.borrow_mut().clear();
     }
 
+    /// Returns a timestamp representing the current time.
     pub fn timestamp(&self) -> Timestamp {
         Timestamp::default()
     }

@@ -1,6 +1,7 @@
 mod test_mini_logger;
 
 // ============================================================================
+// NOTE: This is just sample to test mini logger not mandatory how to use mini logger
 // RUN CUSTOM COLOR MODE (Default Behavior):
 //    $ cargo run
 //    -> Runs `custom()`. Uses code-defined filters and applies ANSI color styles.

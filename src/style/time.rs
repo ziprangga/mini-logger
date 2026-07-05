@@ -2,11 +2,16 @@ use chrono::{DateTime, Utc};
 use std::fmt;
 use std::time::SystemTime;
 
+/// Precision used when formatting timestamps.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum TimestampPrecision {
+    /// Whole seconds.
     Seconds,
+    /// Millisecond precision.
     Millis,
+    /// Microsecond precision.
     Micros,
+    /// Nanosecond precision.
     Nanos,
 }
 
@@ -30,13 +35,18 @@ impl Default for TimestampPrecision {
     }
 }
 
+/// Timestamp used by the built-in formatter.
+///
+/// A timestamp stores both the captured time and the precision used
+/// when formatting it.
 #[derive(Copy, Clone)]
 pub struct Timestamp {
-    pub time: SystemTime,
-    pub precision: TimestampPrecision,
+    time: SystemTime,
+    precision: TimestampPrecision,
 }
 
 impl Timestamp {
+    /// Returns a timestamp using second precision.
     pub fn timestamp_seconds(&self) -> Self {
         Self {
             time: SystemTime::now(),
@@ -44,6 +54,7 @@ impl Timestamp {
         }
     }
 
+    /// Returns a timestamp using millisecond precision.
     pub fn timestamp_millis(&self) -> Self {
         Self {
             time: SystemTime::now(),
@@ -51,6 +62,7 @@ impl Timestamp {
         }
     }
 
+    /// Returns a timestamp using microsecond precision.
     pub fn timestamp_micros(&self) -> Self {
         Self {
             time: SystemTime::now(),
@@ -58,6 +70,7 @@ impl Timestamp {
         }
     }
 
+    /// Returns a timestamp using nanosecond precision.
     pub fn timestamp_nanos(&self) -> Self {
         Self {
             time: SystemTime::now(),
@@ -65,12 +78,14 @@ impl Timestamp {
         }
     }
 
+    /// Converts the timestamp into a UTC datetime.
     fn datetime_utc(&self) -> DateTime<Utc> {
         DateTime::<Utc>::from(self.time)
     }
 }
 
 impl Default for Timestamp {
+    /// Creates a timestamp using the current system time and second precision.
     fn default() -> Self {
         Self {
             time: SystemTime::now(),

@@ -1,6 +1,7 @@
 use super::Output;
 use crate::style::ColorMode;
 
+/// In-memory buffer used while formatting log records.
 pub struct Buffer(Vec<u8>);
 impl Buffer {
     pub fn clear(&mut self) {
@@ -12,6 +13,9 @@ impl Buffer {
         Ok(buffer.len())
     }
 
+    /// No-op.
+    ///
+    /// Buffers are flushed when written by [`BufferWriter`].
     pub fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
@@ -27,6 +31,7 @@ impl std::fmt::Debug for Buffer {
     }
 }
 
+/// Low-level writer responsible for writing buffers to an output destination.
 #[derive(Debug, Default)]
 pub struct BufferWriter {
     output: Output,
@@ -64,6 +69,7 @@ impl BufferWriter {
         self
     }
 
+    /// Writes the buffer to the configured output and flushes it.
     pub fn write_buffer(&self, buf: &Buffer) -> std::io::Result<()> {
         use std::io::Write as _;
 

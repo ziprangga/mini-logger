@@ -6,6 +6,10 @@ use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
 
+/// Configuration for the built-in log formatter.
+///
+/// Each option controls whether a particular header field is included
+/// when formatting log records.
 pub struct FormatConfig {
     timestamp: Option<TimestampPrecision>,
     level: bool,
@@ -14,23 +18,34 @@ pub struct FormatConfig {
 }
 
 impl FormatConfig {
+    /// Enables, disables, or configures timestamp output.
     pub fn timestamp(&mut self, timestamp: Option<TimestampPrecision>) -> &mut Self {
         self.timestamp = timestamp;
         self
     }
+
+    /// Enables or disables writing the log level.
     pub fn level(&mut self, write: bool) -> &mut Self {
         self.level = write;
         self
     }
+
+    /// Enables or disables writing the log target.
     pub fn target(&mut self, write: bool) -> &mut Self {
         self.target = write;
         self
     }
+
+    /// Enables or disables writing the module path.
     pub fn module_path(&mut self, write: bool) -> &mut Self {
         self.module_path = write;
         self
     }
 
+    /// Formats a log record using the configured layout.
+    ///
+    /// Internally constructs a [`FormatLayoutWriter`] to write the
+    /// configured header fields and message.
     pub fn format_write_layout(
         &self,
         buf_formatter: &mut BufferFormatter,
@@ -47,6 +62,13 @@ impl FormatConfig {
 }
 
 impl Default for FormatConfig {
+    /// Creates the default formatting configuration.
+    ///
+    /// By default:
+    /// - timestamp is enabled
+    /// - log level is enabled
+    /// - target is disabled
+    /// - module path is enabled
     fn default() -> Self {
         Self {
             timestamp: Some(TimestampPrecision::default()),
@@ -57,6 +79,10 @@ impl Default for FormatConfig {
     }
 }
 
+/// Writes the built-in log layout.
+///
+/// The writer keeps track of whether any header fields have been written
+/// so separators and brackets are emitted correctly.
 struct FormatLayoutWriter<'a> {
     format_config: &'a FormatConfig,
     buf_formatter: &'a mut BufferFormatter,
@@ -64,6 +90,7 @@ struct FormatLayoutWriter<'a> {
 }
 
 impl FormatLayoutWriter<'_> {
+    /// Writes the complete formatted log record.
     #[inline]
     pub fn write(mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         self.write_timestamp()?;
@@ -74,6 +101,10 @@ impl FormatLayoutWriter<'_> {
         self.write_args(record_msg)
     }
 
+    /// Writes a single header field.
+    ///
+    /// The first header field starts the header with `[`, while subsequent
+    /// fields are separated by spaces.
     fn write_header_value<T>(&mut self, value: T) -> io::Result<()>
     where
         T: Display,
@@ -88,6 +119,9 @@ impl FormatLayoutWriter<'_> {
         Ok(())
     }
 
+    /// Writes the timestamp if enabled.
+    ///
+    /// Returns immediately when timestamp output is disabled.
     fn write_timestamp(&mut self) -> io::Result<()> {
         {
             use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
@@ -103,6 +137,9 @@ impl FormatLayoutWriter<'_> {
         }
     }
 
+    /// Writes the log level if enabled.
+    ///
+    /// The level is colorized according to its severity.
     fn write_level(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.level {
             return Ok(());
@@ -127,6 +164,9 @@ impl FormatLayoutWriter<'_> {
         ))
     }
 
+    /// Writes the log target if enabled.
+    ///
+    /// Empty targets are skipped.
     fn write_target(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.target {
             return Ok(());
@@ -140,6 +180,9 @@ impl FormatLayoutWriter<'_> {
         self.write_header_value(target)
     }
 
+    /// Writes the module path if enabled.
+    ///
+    /// Records without a module path are skipped.
     fn write_module(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.format_config.module_path {
             return Ok(());
@@ -151,6 +194,9 @@ impl FormatLayoutWriter<'_> {
         }
     }
 
+    /// Finishes the header.
+    ///
+    /// Writes the closing `] ` only if at least one header field was written.
     fn finish_header(&mut self) -> io::Result<()> {
         if self.written_header {
             write!(self.buf_formatter, "] ")?;
@@ -158,6 +204,7 @@ impl FormatLayoutWriter<'_> {
         Ok(())
     }
 
+    /// Writes the log message followed by a newline.
     fn write_args(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         write!(self.buf_formatter, "{}\n", record_msg.msg())
     }

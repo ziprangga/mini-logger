@@ -1,3 +1,4 @@
+/// ANSI terminal colors used by the built-in formatter.
 #[derive(Clone, Copy, Debug)]
 pub enum Color {
     Reset,
@@ -8,6 +9,7 @@ pub enum Color {
 }
 
 impl Color {
+    /// Returns the ANSI escape sequence for the color.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Reset => "\x1b[0m",
@@ -19,15 +21,20 @@ impl Color {
     }
 }
 
+/// Controls when ANSI colors are emitted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum ColorMode {
+    /// Enable colors only when writing to a terminal.
     #[default]
     Auto,
+    /// Always emit ANSI color escape sequences.
     Always,
+    /// Never emit ANSI color escape sequences.
     Never,
 }
 
 impl ColorMode {
+    /// Returns whether ANSI colors should be emitted.
     fn enabled(self) -> bool {
         use std::io::IsTerminal;
         match self {
@@ -37,10 +44,16 @@ impl ColorMode {
         }
     }
 
+    /// Returns the ANSI escape sequence for the color.
+    ///
+    /// Returns an empty string when colors are disabled.
     pub fn color(self, color: Color) -> &'static str {
         if self.enabled() { color.as_str() } else { "" }
     }
 
+    /// Returns the ANSI reset escape sequence.
+    ///
+    /// Returns an empty string when colors are disabled.
     pub fn reset(self) -> &'static str {
         if self.enabled() {
             Color::Reset.as_str()
