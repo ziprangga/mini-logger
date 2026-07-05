@@ -1,23 +1,25 @@
-mod test_mini_logger;
+//! Example runner.
+//!
+//! Each module demonstrates a different aspect of `mini_logger`.
+//!
+//! # Note
+//!
+//! Logger initialization is global and can only occur once per process.
+//! Therefore, only one initialization example should be run at a time.
+//!
+//! Uncomment either `custom` or `default` to initialize the logger.
+//! The `multi_thread` example can be combined with either initialization
+//! example to demonstrate logging from multiple threads.
+//!
+//! See the documentation in the `custom` and `default` modules for
+//! configuration details and usage notes.
 
-// ============================================================================
-// NOTE: This is just sample to test mini logger not mandatory how to use mini logger
-// RUN CUSTOM COLOR MODE (Default Behavior):
-//    $ cargo run
-//    -> Runs `custom()`. Uses code-defined filters and applies ANSI color styles.
-//
-// RUN SYSTEM ENVIRONMENT LOGGER MODE:
-//    $ cargo run -- true
-//    -> Runs `default()`. Relies entirely on the "RUST_LOG" environment variable.
-//
-// RUN ENVIRONMENT LOGGER WITH TARGET OVERRIDES:
-//    Linux/macOS:  $ RUST_LOG=debug cargo run -- true
-//    PowerShell:   $env:RUST_LOG="debug"; cargo run -- true
-//    -> Forces the system backend to expose all logs down to the Debug tier.
-// ============================================================================
+// mod custom;
+mod default;
+mod multi_thread;
+
 fn main() {
-    let arg = std::env::args().nth(1);
-    let flag = matches!(arg.as_deref(), Some("true"));
-
-    test_mini_logger::run_test_mini_logger(flag);
+    // custom::custom();
+    default::default();
+    multi_thread::multi_thread();
 }
