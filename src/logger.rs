@@ -181,9 +181,9 @@ impl Builder {
         self
     }
 
-    /// Adds a filter rule for a module/target.
-    pub fn filter(mut self, module: Option<&str>, level: FilterLevel) -> Self {
-        self.filter.filter_target(module, level);
+    /// Adds a filter rule for a target.
+    pub fn filter(mut self, target: Option<&str>, level: FilterLevel) -> Self {
+        self.filter.filter_target(target, level);
         self
     }
 

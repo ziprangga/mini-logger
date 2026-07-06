@@ -76,8 +76,7 @@
 //! Builder::new()
 //!     .env_default()
 //!     .output_stdout()
-//!     .try_init()
-//!     .unwrap();
+//!     .init();
 //! ```
 //!
 //! # Re-exported API
