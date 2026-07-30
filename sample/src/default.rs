@@ -23,5 +23,6 @@ pub fn default() {
     mini_logger::init();
 
     info!("MINI_LOGGER");
+    debug!("default debug");
     info!("This use default");
 }

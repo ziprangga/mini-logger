@@ -13,47 +13,50 @@
 //! Buffering allows formatting to complete before any output is written,
 //! reducing partial writes and keeping formatting independent from output.
 
-mod buffer_formatter;
-mod buffer_writer;
+mod buffer;
+mod output;
+pub use buffer::Buffer;
+pub use output::Output;
 
-pub use buffer_formatter::{BufferFormatter, try_with_buf_formatter_slot};
-pub use buffer_writer::{Buffer, BufferWriter};
+use crate::style::{ColorMode, Style, TimeMode};
+use std::cell::RefCell;
 
-use crate::style::ColorMode;
-
-/// Output destination used by the logger.
-#[derive(Default)]
-pub enum Output {
-    /// Write log records to standard output.
-    #[default]
-    Stdout,
-    /// Write log records to standard error.
-    Stderr,
-    /// Append log records to the specified file.
-    File(String),
+thread_local! {
+    static WRITER: RefCell<Option<Writer>> = const {RefCell::new(None)};
 }
 
-impl std::fmt::Debug for Output {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Stdout => "stdout",
-                Self::Stderr => "stderr",
-                Self::File(_) => "file",
-            }
-        )
-    }
-}
-
-/// High-level writer used by the logger.
+/// Executes a closure with access to a thread-local [`BufferFormatter`] slot.
 ///
-/// Owns the configured output destination and provides buffers used
-/// during log formatting.
-#[derive(Debug, Default)]
+/// This slot is used to reuse a formatter per thread to avoid allocating a
+/// new buffer for every log record.
+///
+/// If the thread-local storage is unavailable (e.g. during thread shutdown),
+/// returns `None`.
+///
+/// The slot may contain an existing formatter, or be empty if this is the
+/// first log call on the thread.
+pub fn try_with_buf_formatter_slot<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut Option<Writer>) -> R,
+{
+    WRITER
+        .try_with(|tl| {
+            let mut slot = tl.try_borrow_mut().ok()?;
+            Some(f(&mut slot))
+        })
+        .ok()
+        .flatten()
+}
+
+/// Formatter backed by an in-memory buffer.
+///
+/// Formatting writes into the buffer through the standard [`std::io::Write`]
+/// interface. The completed buffer can later be written by a [`Writer`].
+#[derive(Debug, Default, Clone)]
 pub struct Writer {
-    buffer_writer: BufferWriter,
+    buffer: Buffer,
+    output: Output,
+    style: Style,
 }
 
 impl Writer {
@@ -62,25 +65,55 @@ impl Writer {
         WriterBuilder::new()
     }
 
-    /// Returns the configured color mode.
-    pub fn color_mode(&self) -> ColorMode {
-        self.buffer_writer.color_mode()
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
     }
 
-    /// Creates a new empty output buffer.
-    pub fn buffer(&self) -> Buffer {
-        self.buffer_writer.buffer()
+    pub fn output(&self) -> &Output {
+        &self.output
     }
 
-    /// Writes the buffer to the configured output.
-    pub fn print_out(&self, buf: &Buffer) -> std::io::Result<()> {
-        self.buffer_writer.write_buffer(buf)
+    pub fn style(&self) -> &Style {
+        &self.style
+    }
+
+    pub fn write_buffer(&self) -> std::io::Result<()> {
+        use std::io::Write as _;
+
+        let buf_bytes = self.buffer.as_bytes();
+
+        match &self.output {
+            Output::Stdout => {
+                let mut stream = std::io::stdout().lock();
+                stream.write_all(buf_bytes)?;
+                stream.flush()?;
+            }
+            Output::Stderr => {
+                let mut stream = std::io::stderr().lock();
+                stream.write_all(buf_bytes)?;
+                stream.flush()?;
+            }
+            Output::File(path) => {
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)?;
+                file.write_all(buf_bytes)?;
+                file.flush()?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn clear(&mut self) {
+        self.buffer.clear();
     }
 
     /// Flushes the configured output stream.
     pub fn flush(&self) -> std::io::Result<()> {
         use std::io::Write as _;
-        match self.buffer_writer.output_ref() {
+        match self.output() {
             Output::Stdout => std::io::stdout().flush(),
             Output::Stderr => std::io::stderr().flush(),
             Output::File(path) => {
@@ -91,8 +124,18 @@ impl Writer {
     }
 }
 
+impl std::io::prelude::Write for Writer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.write_out(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.buffer.flush()
+    }
+}
+
 /// Builder for constructing a [`Writer`].
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WriterBuilder {
     writer: Writer,
 }
@@ -105,40 +148,25 @@ impl WriterBuilder {
     }
 
     pub fn stdout(&mut self) -> &mut Self {
-        self.writer.buffer_writer.set_output(Output::Stdout);
+        self.writer.output = Output::Stdout;
         self
     }
 
     pub fn stderr(&mut self) -> &mut Self {
-        self.writer.buffer_writer.set_output(Output::Stderr);
+        self.writer.output = Output::Stderr;
         self
     }
 
     pub fn file(&mut self, path: impl Into<String>) -> &mut Self {
-        self.writer
-            .buffer_writer
-            .set_output(Output::File(path.into()));
+        self.writer.output = Output::File(path.into());
         self
     }
 
     pub fn color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
-        self.writer.buffer_writer.set_color_mode(color_mode);
-        self
-    }
-
-    /// Builds the configured writer.
-    ///
-    /// When the color mode is [`ColorMode::Auto`], the final color mode is
-    /// determined from the selected output destination. Terminal outputs
-    /// enable colors, while file output disables them.
-    pub fn build(self) -> Writer {
-        let color = self.writer.color_mode();
-        let output = self.writer.buffer_writer.output_take();
-
         use std::io::IsTerminal;
 
-        let color_choice = if color == ColorMode::Auto {
-            match output {
+        let color_choice = if color_mode == ColorMode::Auto {
+            match self.writer.output {
                 Output::Stdout => {
                     if std::io::stdout().is_terminal() {
                         ColorMode::Always
@@ -156,17 +184,24 @@ impl WriterBuilder {
                 Output::File(_) => ColorMode::Never,
             }
         } else {
-            color
+            color_mode
         };
 
-        let writer = match output {
-            Output::Stdout => BufferWriter::new(Output::Stdout, color_choice),
-            Output::Stderr => BufferWriter::new(Output::Stderr, color_choice),
-            Output::File(string) => BufferWriter::new(Output::File(string), color_choice),
-        };
+        self.writer.style.set_color_mode(color_choice);
+        self
+    }
 
-        Writer {
-            buffer_writer: writer,
-        }
+    pub fn time_mode(&mut self, time_mode: TimeMode) -> &mut Self {
+        self.writer.style.set_time_mode(time_mode);
+        self
+    }
+
+    /// Builds the configured writer.
+    ///
+    /// When the color mode is [`ColorMode::Auto`], the final color mode is
+    /// determined from the selected output destination. Terminal outputs
+    /// enable colors, while file output disables them.
+    pub fn build(self) -> Writer {
+        self.writer
     }
 }

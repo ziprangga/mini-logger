@@ -182,24 +182,6 @@ impl FilterBuilder {
         }
     }
 
-    /// Inserts a filter directive.
-    ///
-    /// If another directive exists for the same target, it is replaced.
-    /// This guarantees that each target appears at most once before
-    /// the filter is built.
-    fn insert_filter(&mut self, mut tgt: Target) {
-        if let Some(pos) = self
-            .filter
-            .targets
-            .iter()
-            .position(|d| d.target() == tgt.target())
-        {
-            std::mem::swap(&mut self.filter.targets[pos], &mut tgt);
-        } else {
-            self.filter.targets.push(tgt);
-        }
-    }
-
     /// Adds or replaces a target-specific filter directive.
     pub fn filter_target(&mut self, tgt: Option<&str>, lvl: Level) -> &mut Self {
         self.insert_filter(Target::new(tgt.map(|s| s.to_owned()), lvl));
@@ -223,10 +205,15 @@ impl FilterBuilder {
     ///
     /// Parsed directives are merged into the builder configuration.
     pub fn filter_env(&mut self, var_name: &str) -> &mut Self {
-        let envs = parse_var_str(var_name);
-        for target in envs {
+        let value = match std::env::var(var_name) {
+            Ok(v) => v,
+            Err(_) => return self,
+        };
+
+        for target in parse_var_str(&value) {
             self.insert_filter(target);
         }
+
         self
     }
 
@@ -257,6 +244,24 @@ impl FilterBuilder {
             message: std::mem::take(&mut self.filter.message),
         }
     }
+
+    /// Inserts a filter directive.
+    ///
+    /// If another directive exists for the same target, it is replaced.
+    /// This guarantees that each target appears at most once before
+    /// the filter is built.
+    fn insert_filter(&mut self, mut tgt: Target) {
+        if let Some(pos) = self
+            .filter
+            .targets
+            .iter()
+            .position(|d| d.target() == tgt.target())
+        {
+            std::mem::swap(&mut self.filter.targets[pos], &mut tgt);
+        } else {
+            self.filter.targets.push(tgt);
+        }
+    }
 }
 
 impl Default for FilterBuilder {
@@ -281,7 +286,7 @@ impl Default for FilterBuilder {
 /// ```
 ///
 /// Invalid log levels are treated as [`Level::Off`].
-pub fn parse_var_str(var_name: &str) -> Vec<Target> {
+fn parse_var_str(var_name: &str) -> Vec<Target> {
     let mut out = Vec::new();
 
     for directive in var_name.split(',') {

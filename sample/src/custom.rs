@@ -30,22 +30,25 @@ use std::io::Write;
 /// the last configuration takes precedence.
 pub fn custom() {
     mini_logger::Builder::new()
-        .filter(Some("sample"), FilterLevel::Debug)
-        .format_custom(|buf, message| {
+        .filter(Some("sample"), Level::Debug)
+        .format_custom(|writer, message| {
             let color = match message.level() {
-                FilterLevel::Off => Color::Reset,
-                FilterLevel::Error => Color::Red,
-                FilterLevel::Warn => Color::Yellow,
-                FilterLevel::Info => Color::Green,
-                FilterLevel::Debug => Color::Blue,
-                FilterLevel::Trace => Color::Blue,
+                Level::Off => Color::Reset,
+                Level::Error => Color::Red,
+                Level::Warn => Color::Yellow,
+                Level::Info => Color::Green,
+                Level::Debug => Color::Blue,
+                Level::Trace => Color::Blue,
             };
             let level_str = message.level().as_str();
-            let ts = buf.timestamp();
+            let ts = writer
+                .style()
+                .time_mode()
+                .timestamp(TimestampPrecision::default());
             let color_mode = ColorMode::Auto;
 
             writeln!(
-                buf,
+                writer,
                 "{} [{}{}{}] - {}",
                 ts,
                 color_mode.color(color), // Start style
@@ -58,5 +61,6 @@ pub fn custom() {
         .init();
 
     info!("MINI_LOGGER");
+    debug!("default debug");
     info!("This use custom");
 }

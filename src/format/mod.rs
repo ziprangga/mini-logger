@@ -5,7 +5,7 @@
 //!
 //! Formatting can be configured in two ways:
 //!
-//! - Use the built-in formatter with [`FormatConfig`].
+//! - Use the built-in formatter with [`DefaultFormat`].
 //! - Provide a custom formatter by implementing [`FormatCustom`].
 //!
 //! # Built-in Formatter
@@ -57,11 +57,11 @@
 //! });
 //! ```
 
-mod format_config;
-pub use format_config::FormatConfig;
+mod default_format;
+pub use default_format::DefaultFormat;
 
 use crate::record::RecMessage;
-use crate::writer::BufferFormatter;
+use crate::writer::Writer;
 use std::io;
 
 /// Trait implemented by custom log formatters.
@@ -75,18 +75,18 @@ pub trait FormatCustom {
     /// to the provided buffer.
     fn format_custom_layout(
         &self,
-        buf_formatter: &mut BufferFormatter,
+        buf_formatter: &mut Writer,
         record_msg: &RecMessage<'_>,
     ) -> std::io::Result<()>;
 }
 
 impl<F> FormatCustom for F
 where
-    F: Fn(&mut BufferFormatter, &RecMessage<'_>) -> io::Result<()>,
+    F: Fn(&mut Writer, &RecMessage<'_>) -> io::Result<()>,
 {
     fn format_custom_layout(
         &self,
-        buf_formatter: &mut BufferFormatter,
+        buf_formatter: &mut Writer,
         record_msg: &RecMessage<'_>,
     ) -> io::Result<()> {
         (self)(buf_formatter, record_msg)
@@ -98,7 +98,7 @@ where
 /// A formatter is either the built-in configurable formatter or a
 /// user-provided custom formatter.
 pub enum Format {
-    Default(FormatConfig),
+    Default(DefaultFormat),
     Custom(Box<dyn FormatCustom + Send + Sync>),
 }
 
@@ -109,7 +109,7 @@ impl Format {
     /// formatter depending on the active [`Format`] variant.
     pub fn format_record(
         &self,
-        buf_formatter: &mut BufferFormatter,
+        buf_formatter: &mut Writer,
         record_msg: &RecMessage<'_>,
     ) -> io::Result<()> {
         match self {
@@ -122,7 +122,7 @@ impl Format {
 impl Default for Format {
     /// Creates the default built-in formatter.
     fn default() -> Self {
-        Format::Default(FormatConfig::default())
+        Format::Default(DefaultFormat::default())
     }
 }
 
@@ -139,10 +139,10 @@ pub struct FormatBuilder {
 impl FormatBuilder {
     /// Selects the built-in formatter.
     ///
-    /// Returns the associated [`FormatConfig`] so its options can be
+    /// Returns the associated [`DefaultFormat`] so its options can be
     /// configured.
-    pub fn format_default(&mut self) -> &mut FormatConfig {
-        self.format = Format::Default(FormatConfig::default());
+    pub fn format_default(&mut self) -> &mut DefaultFormat {
+        self.format = Format::Default(DefaultFormat::default());
 
         match &mut self.format {
             Format::Default(cfg) => cfg,
@@ -164,3 +164,42 @@ impl FormatBuilder {
         self.format
     }
 }
+
+// /// Generic renderer trait.
+// ///
+// /// A renderer converts an input value into an output representation.
+// ///
+// /// The input type is generic so different record/event types can be
+// /// rendered without changing the renderer abstraction.
+// pub trait FormatRender {
+//     fn format(&self, writer: &mut Writer, record_msg: &RecMessage<'_>) -> std::io::Result<()>;
+// }
+
+// /// Convenience trait that allows values to render themselves using
+// /// a supplied renderer.
+// pub trait Formatable {
+//     fn format_with<F>(&self, writer: &mut Writer, formatter: &F) -> std::io::Result<()>
+//     where
+//         F: FormatRender;
+// }
+
+// impl Formatable for RecMessage<'_> {
+//     fn format_with<F>(&self, writer: &mut Writer, formatter: &F) -> std::io::Result<()>
+//     where
+//         F: FormatRender,
+//     {
+//         formatter.format(writer, self)
+//     }
+// }
+
+// /// Blanket implementation for closures.
+// ///
+// /// Allows simple custom renderers without defining a struct.
+// impl<F> FormatRender for F
+// where
+//     F: Fn(&mut Writer, &RecMessage<'_>) -> std::io::Result<()>,
+// {
+//     fn format(&self, writer: &mut Writer, record_msg: &RecMessage<'_>) -> std::io::Result<()> {
+//         (self)(writer, record_msg)
+//     }
+// }

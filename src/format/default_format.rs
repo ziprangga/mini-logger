@@ -2,22 +2,23 @@ use std::fmt::Display;
 use std::io::{self, Write};
 
 use crate::filter::Level;
+// use crate::format::FormatCustom;
 use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
-use crate::writer::BufferFormatter;
+use crate::writer::Writer;
 
 /// Configuration for the built-in log formatter.
 ///
 /// Each option controls whether a particular header field is included
 /// when formatting log records.
-pub struct FormatConfig {
+pub struct DefaultFormat {
     timestamp: Option<TimestampPrecision>,
     level: bool,
     target: bool,
     module_path: bool,
 }
 
-impl FormatConfig {
+impl DefaultFormat {
     /// Enables, disables, or configures timestamp output.
     pub fn timestamp(&mut self, timestamp: Option<TimestampPrecision>) -> &mut Self {
         self.timestamp = timestamp;
@@ -48,12 +49,12 @@ impl FormatConfig {
     /// configured header fields and message.
     pub fn format_write_layout(
         &self,
-        buf_formatter: &mut BufferFormatter,
+        writer: &mut Writer,
         record_msg: &RecMessage<'_>,
     ) -> io::Result<()> {
         let fmt = FormatLayoutWriter {
             format_config: self,
-            buf_formatter: buf_formatter,
+            writer: writer,
             written_header: false,
         };
 
@@ -61,7 +62,7 @@ impl FormatConfig {
     }
 }
 
-impl Default for FormatConfig {
+impl Default for DefaultFormat {
     /// Creates the default formatting configuration.
     ///
     /// By default:
@@ -79,13 +80,26 @@ impl Default for FormatConfig {
     }
 }
 
+// /// Built-in Formatter implementation.
+// impl FormatRender for DefaultFormat {
+//     fn format(&self, writer: &mut Writer, record_msg: &RecMessage<'_>) -> std::io::Result<()> {
+//         let fmt = FormatLayoutWriter {
+//             format_config: self,
+//             writer,
+//             written_header: false,
+//         };
+
+//         fmt.write(record_msg)
+//     }
+// }
+
 /// Writes the built-in log layout.
 ///
 /// The writer keeps track of whether any header fields have been written
 /// so separators and brackets are emitted correctly.
 struct FormatLayoutWriter<'a> {
-    format_config: &'a FormatConfig,
-    buf_formatter: &'a mut BufferFormatter,
+    format_config: &'a DefaultFormat,
+    writer: &'a mut Writer,
     written_header: bool,
 }
 
@@ -111,9 +125,9 @@ impl FormatLayoutWriter<'_> {
     {
         if !self.written_header {
             self.written_header = true;
-            write!(self.buf_formatter, "[{value}")?;
+            write!(self.writer, "[{value}")?;
         } else {
-            write!(self.buf_formatter, " {value}")?;
+            write!(self.writer, " {value}")?;
         }
 
         Ok(())
@@ -123,18 +137,26 @@ impl FormatLayoutWriter<'_> {
     ///
     /// Returns immediately when timestamp output is disabled.
     fn write_timestamp(&mut self) -> io::Result<()> {
-        {
-            use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
-            let ts = match self.format_config.timestamp {
-                None => return Ok(()),
-                Some(Seconds) => self.buf_formatter.timestamp().timestamp_seconds(),
-                Some(Millis) => self.buf_formatter.timestamp().timestamp_millis(),
-                Some(Micros) => self.buf_formatter.timestamp().timestamp_micros(),
-                Some(Nanos) => self.buf_formatter.timestamp().timestamp_nanos(),
-            };
+        // {
+        //     use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
+        //     let ts = match self.format_config.timestamp {
+        //         None => return Ok(()),
+        //         Some(Seconds) => self.writer.style().timestamp().timestamp_seconds(),
+        //         Some(Millis) => self.writer.style().timestamp().timestamp_millis(),
+        //         Some(Micros) => self.writer.style().timestamp().timestamp_micros(),
+        //         Some(Nanos) => self.writer.style().timestamp().timestamp_nanos(),
+        //     };
 
-            self.write_header_value(ts)
-        }
+        //     self.write_header_value(ts)
+        // }
+        let precision = match self.format_config.timestamp {
+            Some(precision) => precision,
+            None => return Ok(()),
+        };
+
+        let timestamp = self.writer.style().time_mode().timestamp(precision);
+
+        self.write_header_value(timestamp)
     }
 
     /// Writes the log level if enabled.
@@ -158,9 +180,9 @@ impl FormatLayoutWriter<'_> {
 
         self.write_header_value(format_args!(
             "{}{:<5}{}",
-            self.buf_formatter.color_mode().color(color),
+            self.writer.style().color_mode().color(color),
             level_str,
-            self.buf_formatter.color_mode().reset()
+            self.writer.style().color_mode().reset()
         ))
     }
 
@@ -199,13 +221,13 @@ impl FormatLayoutWriter<'_> {
     /// Writes the closing `] ` only if at least one header field was written.
     fn finish_header(&mut self) -> io::Result<()> {
         if self.written_header {
-            write!(self.buf_formatter, "] ")?;
+            write!(self.writer, "] ")?;
         }
         Ok(())
     }
 
     /// Writes the log message followed by a newline.
     fn write_args(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
-        write!(self.buf_formatter, "{}\n", record_msg.msg())
+        write!(self.writer, "{}\n", record_msg.msg())
     }
 }

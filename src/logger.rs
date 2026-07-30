@@ -96,8 +96,8 @@
 use crate::filter::{Filter, FilterBuilder, Level};
 use crate::format::{Format, FormatBuilder};
 use crate::record::RecMessage;
-use crate::style::ColorMode;
-use crate::writer::{BufferFormatter, Writer, WriterBuilder, try_with_buf_formatter_slot};
+use crate::style::{ColorMode, TimeMode};
+use crate::writer::{Writer, WriterBuilder, try_with_buf_formatter_slot};
 
 use std::sync::OnceLock;
 
@@ -193,6 +193,12 @@ impl Builder {
         self
     }
 
+    /// Set output time mode.
+    pub fn time_mode(mut self, time_mode: TimeMode) -> Self {
+        self.writer.time_mode(time_mode);
+        self
+    }
+
     /// Enables/disables printing log level.
     pub fn format_level(mut self, write: bool) -> Self {
         self.format.format_default().level(write);
@@ -216,7 +222,7 @@ impl Builder {
     /// The function receives a buffer and the log record.
     pub fn format_custom<F>(mut self, format: F) -> Self
     where
-        F: Fn(&mut BufferFormatter, &RecMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
+        F: Fn(&mut Writer, &RecMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
     {
         self.format.format_custom(format);
         self
@@ -336,48 +342,79 @@ impl Logger {
             return;
         }
 
-        let write_and_flush = |buf_formatter: &mut BufferFormatter| {
+        // let write_and_flush = |buf_formatter: &mut BufferFormatter| {
+        //     let _ = self
+        //         .format
+        //         .format_record(buf_formatter, record_msg)
+        //         .and_then(|_| buf_formatter.print(&self.writer));
+        //     // Clear buffer for next log
+        //     buf_formatter.clear();
+        // };
+        let write_and_flush = |writer: &mut Writer| {
             let _ = self
                 .format
-                .format_record(buf_formatter, record_msg)
-                .and_then(|_| buf_formatter.print(&self.writer));
-            // Clear buffer for next log
-            buf_formatter.clear();
+                .format_record(writer, record_msg)
+                .and_then(|_| writer.write_buffer());
+
+            writer.clear();
         };
 
-        //Use thread-local buffer
+        // //Use thread-local buffer
+        // let printed = try_with_buf_formatter_slot(|slot| match slot {
+        //     Some(buf_formatter) => {
+        //         if buf_formatter.color_mode() != self.writer.color_mode() {
+        //             *buf_formatter = BufferFormatter::new(&self.writer);
+        //         }
+        //         write_and_flush(buf_formatter);
+        //     }
+        //     None => {
+        //         let mut buf_formatter = BufferFormatter::new(&self.writer);
+        //         write_and_flush(&mut buf_formatter);
+        //         *slot = Some(buf_formatter);
+        //     }
+        // })
+        // .is_some();
         let printed = try_with_buf_formatter_slot(|slot| match slot {
-            Some(buf_formatter) => {
-                if buf_formatter.color_mode() != self.writer.color_mode() {
-                    *buf_formatter = BufferFormatter::new(&self.writer);
-                }
-                write_and_flush(buf_formatter);
+            Some(writer) => {
+                write_and_flush(writer);
             }
             None => {
-                let mut buf_formatter = BufferFormatter::new(&self.writer);
-                write_and_flush(&mut buf_formatter);
-                *slot = Some(buf_formatter);
+                let mut writer = self.writer.clone();
+                write_and_flush(&mut writer);
+                *slot = Some(writer);
             }
         })
         .is_some();
 
-        // Fallback if thread-local unavailable (thread shutting down)
+        // // Fallback if thread-local unavailable (thread shutting down)
+        // if !printed {
+        //     let mut buf_formatter = BufferFormatter::new(&self.writer);
+        //     write_and_flush(&mut buf_formatter);
+        // }
         if !printed {
-            let mut buf_formatter = BufferFormatter::new(&self.writer);
-            write_and_flush(&mut buf_formatter);
+            let mut writer = self.writer.clone();
+            write_and_flush(&mut writer);
         }
     }
 
     /// Flushes all buffered output.
     pub fn flush(&self) {
-        // Flush all thread-local formatters
+        // // Flush all thread-local formatters
+        // let _ = try_with_buf_formatter_slot(|slot| {
+        //     if let Some(buf_formatter) = slot {
+        //         let _ = buf_formatter.print(&self.writer);
+        //         buf_formatter.clear();
+        //     }
+        // });
+        // // Flush the underlying writer's buffer
+        // let _ = self.writer.flush();
         let _ = try_with_buf_formatter_slot(|slot| {
-            if let Some(buf_formatter) = slot {
-                let _ = buf_formatter.print(&self.writer);
-                buf_formatter.clear();
+            if let Some(writer) = slot {
+                let _ = writer.write_buffer();
+                writer.clear();
             }
         });
-        // Flush the underlying writer's buffer
+
         let _ = self.writer.flush();
     }
 }

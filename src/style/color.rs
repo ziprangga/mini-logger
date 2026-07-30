@@ -35,7 +35,7 @@ pub enum ColorMode {
 
 impl ColorMode {
     /// Returns whether ANSI colors should be emitted.
-    fn enabled(self) -> bool {
+    fn is_enabled(self) -> bool {
         use std::io::IsTerminal;
         match self {
             ColorMode::Always => true,
@@ -48,14 +48,18 @@ impl ColorMode {
     ///
     /// Returns an empty string when colors are disabled.
     pub fn color(self, color: Color) -> &'static str {
-        if self.enabled() { color.as_str() } else { "" }
+        if self.is_enabled() {
+            color.as_str()
+        } else {
+            ""
+        }
     }
 
     /// Returns the ANSI reset escape sequence.
     ///
     /// Returns an empty string when colors are disabled.
     pub fn reset(self) -> &'static str {
-        if self.enabled() {
+        if self.is_enabled() {
             Color::Reset.as_str()
         } else {
             ""
