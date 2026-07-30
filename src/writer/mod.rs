@@ -1,17 +1,26 @@
 //! Buffered output and writing infrastructure.
 //!
-//! This module is responsible for writing formatted log records to their
-//! configured destination.
+//! This module provides the output layer used by the logger.
 //!
 //! The writing pipeline consists of:
 //!
-//! - [`Writer`] configures the output destination and color mode.
-//! - [`BufferFormatter`] formats log records into an in-memory buffer.
-//! - [`BufferWriter`] writes the completed buffer to the configured output.
-//! - [`Buffer`] stores the formatted bytes before they are written.
+//! - [`Writer`] stores the reusable formatting buffer, output destination,
+//!   and output style configuration.
+//! - [`Buffer`] stores formatted bytes before they are written.
+//! - [`Output`] defines the destination where completed buffers are written.
 //!
-//! Buffering allows formatting to complete before any output is written,
-//! reducing partial writes and keeping formatting independent from output.
+//! The writer uses thread-local storage to reuse a [`Writer`] instance per
+//! thread during logging. This avoids repeated buffer allocations while
+//! keeping each thread's temporary formatting state independent.
+//!
+//! The configured writer is created by [`WriterBuilder`] and finalized during
+//! [`WriterBuilder::build`]. Automatic color selection is resolved at build
+//! time after the output destination has been configured, ensuring the result
+//! is independent of the order in which builder methods are called.
+//!
+//! Buffering allows formatting to complete before output is written, reducing
+//! partial writes and keeping formatting separate from output handling.
+//!..
 
 mod buffer;
 mod output;
@@ -25,16 +34,16 @@ thread_local! {
     static WRITER: RefCell<Option<Writer>> = const {RefCell::new(None)};
 }
 
-/// Executes a closure with access to a thread-local [`BufferFormatter`] slot.
+/// Executes a closure with access to the thread-local [`Writer`] slot.
 ///
-/// This slot is used to reuse a formatter per thread to avoid allocating a
-/// new buffer for every log record.
+/// The slot stores a reusable writer instance for the current thread.
+/// Reusing this writer avoids allocating a new buffer for every log record.
 ///
-/// If the thread-local storage is unavailable (e.g. during thread shutdown),
-/// returns `None`.
+/// The slot may already contain a writer from a previous log call, or may be
+/// empty when the thread performs logging for the first time.
 ///
-/// The slot may contain an existing formatter, or be empty if this is the
-/// first log call on the thread.
+/// Returns `None` when thread-local access is unavailable, such as during
+/// thread shutdown.
 pub fn try_with_buf_formatter_slot<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut Option<Writer>) -> R,
@@ -48,10 +57,15 @@ where
         .flatten()
 }
 
-/// Formatter backed by an in-memory buffer.
+/// Writer backed by an in-memory buffer.
 ///
-/// Formatting writes into the buffer through the standard [`std::io::Write`]
-/// interface. The completed buffer can later be written by a [`Writer`].
+/// A writer combines three responsibilities:
+///
+/// - storing formatted bytes in [`Buffer`],
+/// - holding the configured [`Output`] destination,
+/// - applying [`Style`] options during formatting.
+///
+/// The completed buffer can later be written to the configured destination.
 #[derive(Debug, Default, Clone)]
 pub struct Writer {
     buffer: Buffer,
@@ -135,6 +149,17 @@ impl std::io::prelude::Write for Writer {
 }
 
 /// Builder for constructing a [`Writer`].
+///
+/// Configures:
+///
+/// - output destination,
+/// - color mode,
+/// - time mode.
+///
+/// The final writer state is produced by [`WriterBuilder::build`].
+/// Automatic color mode resolution happens during build because the selected
+/// output destination is required to determine whether terminal colors should
+/// be enabled.
 #[derive(Debug, Default, Clone)]
 pub struct WriterBuilder {
     writer: Writer,
@@ -174,9 +199,25 @@ impl WriterBuilder {
 
     /// Builds the configured writer.
     ///
-    /// When the color mode is [`ColorMode::Auto`], the final color mode is
-    /// determined from the selected output destination. Terminal outputs
-    /// enable colors, while file output disables them.
+    /// If [`ColorMode::Auto`] is configured, the final color mode is resolved
+    /// from the selected output destination:
+    ///
+    /// - terminal output enables colors when supported,
+    /// - file output disables colors.
+    ///
+    /// Resolution is delayed until build time so calls such as:
+    ///
+    /// ```text
+    /// color_mode(Auto) -> output_stdout()
+    /// ```
+    ///
+    /// and:
+    ///
+    /// ```text
+    /// output_stdout() -> color_mode(Auto)
+    /// ```
+    ///
+    /// produce the same final writer configuration.
     pub fn build(self) -> Writer {
         use std::io::IsTerminal;
         let mut writer = self.writer;

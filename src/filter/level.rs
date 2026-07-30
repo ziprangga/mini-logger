@@ -1,6 +1,6 @@
 //! Log filtering levels and the global maximum enabled level.
 //!
-//! `FilterLevel` defines the available log verbosity levels used by the
+//! `Level` defines the available log verbosity levels used by the
 //! filtering system.
 //!
 //! The module also maintains a global maximum enabled level in an atomic,

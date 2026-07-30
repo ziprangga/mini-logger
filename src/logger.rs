@@ -342,14 +342,6 @@ impl Logger {
             return;
         }
 
-        // let write_and_flush = |buf_formatter: &mut BufferFormatter| {
-        //     let _ = self
-        //         .format
-        //         .format_record(buf_formatter, record_msg)
-        //         .and_then(|_| buf_formatter.print(&self.writer));
-        //     // Clear buffer for next log
-        //     buf_formatter.clear();
-        // };
         let write_and_flush = |writer: &mut Writer| {
             let _ = self
                 .format
@@ -359,21 +351,7 @@ impl Logger {
             writer.clear();
         };
 
-        // //Use thread-local buffer
-        // let printed = try_with_buf_formatter_slot(|slot| match slot {
-        //     Some(buf_formatter) => {
-        //         if buf_formatter.color_mode() != self.writer.color_mode() {
-        //             *buf_formatter = BufferFormatter::new(&self.writer);
-        //         }
-        //         write_and_flush(buf_formatter);
-        //     }
-        //     None => {
-        //         let mut buf_formatter = BufferFormatter::new(&self.writer);
-        //         write_and_flush(&mut buf_formatter);
-        //         *slot = Some(buf_formatter);
-        //     }
-        // })
-        // .is_some();
+        //Use thread-local buffer
         let printed = try_with_buf_formatter_slot(|slot| match slot {
             Some(writer) => {
                 write_and_flush(writer);
@@ -386,11 +364,7 @@ impl Logger {
         })
         .is_some();
 
-        // // Fallback if thread-local unavailable (thread shutting down)
-        // if !printed {
-        //     let mut buf_formatter = BufferFormatter::new(&self.writer);
-        //     write_and_flush(&mut buf_formatter);
-        // }
+        // Fallback if thread-local unavailable (thread shutting down)
         if !printed {
             let mut writer = self.writer.clone();
             write_and_flush(&mut writer);
@@ -399,15 +373,7 @@ impl Logger {
 
     /// Flushes all buffered output.
     pub fn flush(&self) {
-        // // Flush all thread-local formatters
-        // let _ = try_with_buf_formatter_slot(|slot| {
-        //     if let Some(buf_formatter) = slot {
-        //         let _ = buf_formatter.print(&self.writer);
-        //         buf_formatter.clear();
-        //     }
-        // });
-        // // Flush the underlying writer's buffer
-        // let _ = self.writer.flush();
+        // Flush all thread-local formatters
         let _ = try_with_buf_formatter_slot(|slot| {
             if let Some(writer) = slot {
                 let _ = writer.write_buffer();

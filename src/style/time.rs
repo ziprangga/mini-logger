@@ -1,29 +1,49 @@
+//! Timestamp configuration and formatting utilities.
+//!
+//! This module provides types used to control timestamp generation and
+//! formatting in log records.
+//!
+//! The available components are:
+//!
+//! - [`TimeMode`] controls whether timestamps are disabled, local time, or UTC.
+//! - [`TimestampPrecision`] controls the fractional time precision.
+//! - [`Timestamp`] stores a captured system time together with its formatting
+//!   configuration.
+//!..
+
 use chrono::{DateTime, Utc};
 use std::fmt;
 use std::time::SystemTime;
 
+/// Controls timestamp generation and timezone selection.
+///
+/// [`TimeMode`] determines whether timestamps are included in formatted output
+/// and which timezone is used when rendering them.
 #[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum TimeMode {
+    /// Disable timestamps.
     Off,
 
+    /// Use the local system timezone.
     Local,
 
+    /// Use UTC timezone.
     #[default]
     Utc,
 }
 
 impl TimeMode {
+    /// Returns whether timestamps are enabled.
     pub fn is_enabled(self) -> bool {
         match self {
             Self::Off => false,
-            Self::Local => true,
-            Self::Utc => true,
+            Self::Local | Self::Utc => true,
         }
     }
 
-    /// Returns the formatted timestamp.
+    /// Creates a timestamp using the current system time.
     ///
-    /// Returns an empty string when timestamps are disabled.
+    /// Returns a disabled timestamp when [`TimeMode::Off`] is selected.
     pub fn timestamp(self, precision: TimestampPrecision) -> Timestamp {
         if !self.is_enabled() {
             return self.reset();
@@ -36,6 +56,10 @@ impl TimeMode {
         }
     }
 
+    /// Creates a default UTC timestamp.
+    ///
+    /// This is used when timestamp output is disabled and provides a neutral
+    /// timestamp value for internal handling.
     pub fn reset(self) -> Timestamp {
         Timestamp {
             mode: TimeMode::Utc,
@@ -59,6 +83,8 @@ impl std::str::FromStr for TimeMode {
 }
 
 /// Precision used when formatting timestamps.
+///
+/// Controls the number of fractional seconds included in formatted output.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum TimestampPrecision {
     /// Whole seconds.
@@ -91,10 +117,15 @@ impl Default for TimestampPrecision {
     }
 }
 
-/// Timestamp used by the built-in formatter.
+/// Captured timestamp used by the built-in formatter.
 ///
-/// A timestamp stores both the captured time and the precision used
-/// when formatting it.
+/// A timestamp stores:
+///
+/// - the selected [`TimeMode`],
+/// - the captured [`SystemTime`],
+/// - the requested [`TimestampPrecision`].
+///
+/// Formatting is performed when the timestamp is displayed.
 #[derive(Copy, Clone)]
 pub struct Timestamp {
     mode: TimeMode,
@@ -115,7 +146,8 @@ impl Timestamp {
 }
 
 impl Default for Timestamp {
-    /// Creates a timestamp using the current system time and second precision.
+    /// Creates a UTC timestamp using the current system time and second
+    /// precision.
     fn default() -> Self {
         Self {
             mode: TimeMode::Utc,

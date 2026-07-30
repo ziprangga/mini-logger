@@ -130,17 +130,33 @@ impl Default for Format {
 ///
 /// Supports either the built-in formatter or a custom formatter.
 /// By default, the built-in formatter is used.
-/// Call [`FormatBuilder::format_custom`] to replace it with a custom formatter.
+///
+/// Calling [`FormatBuilder::format_default`] returns the existing
+/// [`DefaultFormat`] configuration when the builder is already using
+/// the built-in formatter. Existing options are preserved.
+///
+/// If the builder currently contains a custom formatter, calling
+/// [`FormatBuilder::format_default`] replaces it with a new
+/// [`DefaultFormat`].
+///
+/// Call [`FormatBuilder::format_custom`] to replace the built-in formatter
+/// with a custom formatter.
 #[derive(Default)]
 pub struct FormatBuilder {
     format: Format,
 }
 
 impl FormatBuilder {
-    /// Selects the built-in formatter.
+    //// Selects the built-in formatter.
     ///
     /// Returns the associated [`DefaultFormat`] so its options can be
     /// configured.
+    ///
+    /// If the builder is already configured with the built-in formatter,
+    /// the existing configuration is preserved.
+    ///
+    /// If a custom formatter is currently configured, it is replaced with
+    /// a new default built-in formatter.
     pub fn format_default(&mut self) -> &mut DefaultFormat {
         let is_default = match &self.format {
             Format::Default(_) => true,

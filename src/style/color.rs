@@ -1,4 +1,7 @@
 /// ANSI terminal colors used by the built-in formatter.
+///
+/// Each variant represents a standard ANSI color escape sequence used when
+/// rendering formatted log records.
 #[derive(Clone, Copy, Debug)]
 pub enum Color {
     Reset,
@@ -21,10 +24,16 @@ impl Color {
     }
 }
 
-/// Controls when ANSI colors are emitted.
+/// Controls when ANSI color escape sequences are emitted.
+///
+/// The selected mode is stored as part of [`crate::style::Style`] and is
+/// resolved during writer construction when [`ColorMode::Auto`] is used.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum ColorMode {
-    /// Enable colors only when writing to a terminal.
+    /// Automatically enable colors when output supports terminal rendering.
+    ///
+    /// The final decision is resolved by [`crate::writer::WriterBuilder`]
+    /// during build, after the output destination is known.
     #[default]
     Auto,
     /// Always emit ANSI color escape sequences.
@@ -34,7 +43,10 @@ pub enum ColorMode {
 }
 
 impl ColorMode {
-    /// Returns whether ANSI colors should be emitted.
+    /// Returns whether ANSI colors should currently be emitted.
+    ///
+    /// [`ColorMode::Auto`] checks terminal availability on standard output or
+    /// standard error.
     fn is_enabled(self) -> bool {
         use std::io::IsTerminal;
         match self {

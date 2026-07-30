@@ -5,7 +5,7 @@
 //! - **Message filtering** optionally matches log messages by substring.
 //!
 //! Filtering can be configured programmatically with [`FilterBuilder`] or loaded
-//! from an environment variable using [`FilterEnv`].
+//! from an environment variable using [`FilterBuilder::filter_env`].
 //!
 //! # Filter Configuration
 //!
@@ -102,7 +102,9 @@ impl Target {
 /// A filter evaluates:
 /// - the record target,
 /// - the record level,
-/// - and optionally whether the message contains a configured substring.
+/// - and optionally the record message substring.
+///
+/// A record must pass both level filtering and message filtering.
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
     targets: Vec<Target>,
@@ -148,10 +150,11 @@ impl Filter {
 
     /// Determines whether a log level is enabled for the given target.
     ///
-    /// Every matching directive is evaluated in order. Since target
-    /// directives are sorted by prefix length during `build()`,
-    /// broader prefixes are applied first and more specific prefixes
-    /// override them.
+    /// Every matching directive is evaluated in order.
+    ///
+    /// Directives are sorted by prefix length during `build()`, causing
+    /// broader prefixes to be applied first and more specific prefixes to
+    /// replace the effective level later.
     fn enabled(&self, tgt: &str, lvl: &Level) -> bool {
         let mut level = Level::Off;
 
@@ -166,9 +169,11 @@ impl Filter {
 
 /// Builder for constructing a [`Filter`].
 ///
-/// Supports configuration from code or environment variables. Duplicate
-/// targets replace earlier definitions, and target directives are ordered
-/// from least-specific to most-specific before the filter is built.
+/// Supports configuration from code or environment variables.
+///
+/// Duplicate targets replace earlier definitions. Before building, target
+/// directives are sorted from shorter prefixes to longer prefixes so that
+/// more specific targets override broader target prefixes during matching.
 #[derive(Debug)]
 pub struct FilterBuilder {
     filter: Filter,
@@ -223,8 +228,8 @@ impl FilterBuilder {
     /// inserted.
     ///
     /// Target directives are sorted by target length (shortest first).
-    /// During matching, every matching directive updates the effective level,
-    /// allowing more specific target prefixes to override broader ones.
+    /// This allows longer and more specific target prefixes to override
+    /// broader matches during filtering.
     pub fn build(mut self) -> Filter {
         let mut in_targets = Vec::new();
 

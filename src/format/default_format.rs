@@ -2,17 +2,26 @@ use std::fmt::Display;
 use std::io::{self, Write};
 
 use crate::filter::Level;
-// use crate::format::FormatCustom;
 use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::Writer;
 
 /// Configuration for the built-in log formatter.
 ///
-/// Each option controls whether a particular header field is included
+/// Each option controls whether a specific header field is included
 /// when formatting log records.
+///
+/// The built-in formatter can write:
+///
+/// - timestamp with configurable precision
+/// - log level
+/// - log target
+/// - module path
+///
+/// Header fields are written inside a single bracketed prefix.
+/// Fields that are disabled or unavailable are skipped.
 pub struct DefaultFormat {
-    timestamp: Option<TimestampPrecision>,
+    timestamp: bool,
     level: bool,
     target: bool,
     module_path: bool,
@@ -20,8 +29,8 @@ pub struct DefaultFormat {
 
 impl DefaultFormat {
     /// Enables, disables, or configures timestamp output.
-    pub fn timestamp(&mut self, timestamp: Option<TimestampPrecision>) -> &mut Self {
-        self.timestamp = timestamp;
+    pub fn timestamp(&mut self, write: bool) -> &mut Self {
+        self.timestamp = write;
         self
     }
 
@@ -43,10 +52,11 @@ impl DefaultFormat {
         self
     }
 
-    /// Formats a log record using the configured layout.
+    /// Formats a log record using the configured built-in layout.
     ///
-    /// Internally constructs a [`FormatLayoutWriter`] to write the
-    /// configured header fields and message.
+    /// The formatter writes enabled header fields followed by the
+    /// log message. Header fields are grouped into a single prefix
+    /// and omitted fields do not produce empty separators.
     pub fn format_write_layout(
         &self,
         writer: &mut Writer,
@@ -65,14 +75,15 @@ impl DefaultFormat {
 impl Default for DefaultFormat {
     /// Creates the default formatting configuration.
     ///
-    /// By default:
-    /// - timestamp is enabled
-    /// - log level is enabled
-    /// - target is disabled
-    /// - module path is enabled
+    /// Default settings:
+    ///
+    /// - timestamp enabled
+    /// - log level enabled
+    /// - target disabled
+    /// - module path enabled
     fn default() -> Self {
         Self {
-            timestamp: Some(TimestampPrecision::default()),
+            timestamp: true,
             level: true,
             target: false,
             module_path: true,
@@ -80,10 +91,11 @@ impl Default for DefaultFormat {
     }
 }
 
-/// Writes the built-in log layout.
+/// Internal writer for the built-in log layout.
 ///
-/// The writer keeps track of whether any header fields have been written
-/// so separators and brackets are emitted correctly.
+/// Tracks whether any header field has already been written so the
+/// formatter can correctly insert separators and avoid producing
+/// empty header sections.
 struct FormatLayoutWriter<'a> {
     formatter: &'a DefaultFormat,
     writer: &'a mut Writer,
@@ -120,23 +132,28 @@ impl FormatLayoutWriter<'_> {
         Ok(())
     }
 
-    /// Writes the timestamp if enabled.
+    /// Writes the timestamp header field if timestamp formatting is enabled.
     ///
-    /// Returns immediately when timestamp output is disabled.
+    /// The timestamp mode and formatting behavior are taken from the writer
+    /// style configuration.
     fn write_timestamp(&mut self) -> io::Result<()> {
-        let precision = match self.formatter.timestamp {
-            Some(precision) => precision,
-            None => return Ok(()),
-        };
+        if !self.formatter.timestamp {
+            return Ok(());
+        }
 
-        let timestamp = self.writer.style().time_mode().timestamp(precision);
+        let timestamp = self
+            .writer
+            .style()
+            .time_mode()
+            .timestamp(TimestampPrecision::default());
 
         self.write_header_value(timestamp)
     }
 
-    /// Writes the log level if enabled.
+    /// Writes the log level header field if enabled.
     ///
-    /// The level is colorized according to its severity.
+    /// The level text is colorized according to the current writer
+    /// color mode and severity level.
     fn write_level(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.formatter.level {
             return Ok(());
@@ -161,9 +178,9 @@ impl FormatLayoutWriter<'_> {
         ))
     }
 
-    /// Writes the log target if enabled.
+    /// Writes the log target header field if enabled.
     ///
-    /// Empty targets are skipped.
+    /// Empty targets are ignored.
     fn write_target(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.formatter.target {
             return Ok(());
@@ -177,9 +194,9 @@ impl FormatLayoutWriter<'_> {
         self.write_header_value(target)
     }
 
-    /// Writes the module path if enabled.
+    /// Writes the module path header field if enabled.
     ///
-    /// Records without a module path are skipped.
+    /// Records without a module path do not add a header field.
     fn write_module(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         if !self.formatter.module_path {
             return Ok(());
