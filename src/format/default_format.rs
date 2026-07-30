@@ -53,7 +53,7 @@ impl DefaultFormat {
         record_msg: &RecMessage<'_>,
     ) -> io::Result<()> {
         let fmt = FormatLayoutWriter {
-            format_config: self,
+            formatter: self,
             writer: writer,
             written_header: false,
         };
@@ -80,25 +80,12 @@ impl Default for DefaultFormat {
     }
 }
 
-// /// Built-in Formatter implementation.
-// impl FormatRender for DefaultFormat {
-//     fn format(&self, writer: &mut Writer, record_msg: &RecMessage<'_>) -> std::io::Result<()> {
-//         let fmt = FormatLayoutWriter {
-//             format_config: self,
-//             writer,
-//             written_header: false,
-//         };
-
-//         fmt.write(record_msg)
-//     }
-// }
-
 /// Writes the built-in log layout.
 ///
 /// The writer keeps track of whether any header fields have been written
 /// so separators and brackets are emitted correctly.
 struct FormatLayoutWriter<'a> {
-    format_config: &'a DefaultFormat,
+    formatter: &'a DefaultFormat,
     writer: &'a mut Writer,
     written_header: bool,
 }
@@ -137,19 +124,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// Returns immediately when timestamp output is disabled.
     fn write_timestamp(&mut self) -> io::Result<()> {
-        // {
-        //     use self::TimestampPrecision::{Micros, Millis, Nanos, Seconds};
-        //     let ts = match self.format_config.timestamp {
-        //         None => return Ok(()),
-        //         Some(Seconds) => self.writer.style().timestamp().timestamp_seconds(),
-        //         Some(Millis) => self.writer.style().timestamp().timestamp_millis(),
-        //         Some(Micros) => self.writer.style().timestamp().timestamp_micros(),
-        //         Some(Nanos) => self.writer.style().timestamp().timestamp_nanos(),
-        //     };
-
-        //     self.write_header_value(ts)
-        // }
-        let precision = match self.format_config.timestamp {
+        let precision = match self.formatter.timestamp {
             Some(precision) => precision,
             None => return Ok(()),
         };
@@ -163,7 +138,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// The level is colorized according to its severity.
     fn write_level(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
-        if !self.format_config.level {
+        if !self.formatter.level {
             return Ok(());
         }
 
@@ -190,7 +165,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// Empty targets are skipped.
     fn write_target(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
-        if !self.format_config.target {
+        if !self.formatter.target {
             return Ok(());
         }
 
@@ -206,7 +181,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// Records without a module path are skipped.
     fn write_module(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
-        if !self.format_config.module_path {
+        if !self.formatter.module_path {
             return Ok(());
         }
         if let Some(module) = record_msg.module() {

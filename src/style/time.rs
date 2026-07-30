@@ -103,42 +103,6 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
-    /// Returns a timestamp using second precision.
-    pub fn timestamp_seconds(&self) -> Self {
-        Self {
-            mode: self.mode,
-            time: SystemTime::now(),
-            precision: TimestampPrecision::Seconds,
-        }
-    }
-
-    /// Returns a timestamp using millisecond precision.
-    pub fn timestamp_millis(&self) -> Self {
-        Self {
-            mode: self.mode,
-            time: SystemTime::now(),
-            precision: TimestampPrecision::Millis,
-        }
-    }
-
-    /// Returns a timestamp using microsecond precision.
-    pub fn timestamp_micros(&self) -> Self {
-        Self {
-            mode: self.mode,
-            time: SystemTime::now(),
-            precision: TimestampPrecision::Micros,
-        }
-    }
-
-    /// Returns a timestamp using nanosecond precision.
-    pub fn timestamp_nanos(&self) -> Self {
-        Self {
-            mode: self.mode,
-            time: SystemTime::now(),
-            precision: TimestampPrecision::Nanos,
-        }
-    }
-
     /// Converts the timestamp into a Local datetime.
     fn datetime_local(&self) -> chrono::DateTime<chrono::Local> {
         chrono::DateTime::<chrono::Local>::from(self.time)

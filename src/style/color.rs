@@ -38,9 +38,9 @@ impl ColorMode {
     fn is_enabled(self) -> bool {
         use std::io::IsTerminal;
         match self {
-            ColorMode::Always => true,
-            ColorMode::Never => false,
-            ColorMode::Auto => std::io::stdout().is_terminal(),
+            Self::Always => true,
+            Self::Never => false,
+            Self::Auto => std::io::stdout().is_terminal() || std::io::stderr().is_terminal(),
         }
     }
 

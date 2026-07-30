@@ -187,6 +187,24 @@ impl Builder {
         self
     }
 
+    /// Writes logs to stdout.
+    pub fn output_stdout(mut self) -> Self {
+        self.writer.stdout();
+        self
+    }
+
+    /// Writes logs to stderr.
+    pub fn output_stderr(mut self) -> Self {
+        self.writer.stderr();
+        self
+    }
+
+    /// Writes logs to a file.
+    pub fn output_file(mut self, path: impl Into<String>) -> Self {
+        self.writer.file(path);
+        self
+    }
+
     /// Set output color mode.
     pub fn color_mode(mut self, color_mode: ColorMode) -> Self {
         self.writer.color_mode(color_mode);
@@ -225,24 +243,6 @@ impl Builder {
         F: Fn(&mut Writer, &RecMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
     {
         self.format.format_custom(format);
-        self
-    }
-
-    /// Writes logs to stdout.
-    pub fn output_stdout(mut self) -> Self {
-        self.writer.stdout();
-        self
-    }
-
-    /// Writes logs to stderr.
-    pub fn output_stderr(mut self) -> Self {
-        self.writer.stderr();
-        self
-    }
-
-    /// Writes logs to a file.
-    pub fn output_file(mut self, path: impl Into<String>) -> Self {
-        self.writer.file(path);
         self
     }
 

@@ -163,10 +163,26 @@ impl WriterBuilder {
     }
 
     pub fn color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
-        use std::io::IsTerminal;
+        self.writer.style.set_color_mode(color_mode);
+        self
+    }
 
-        let color_choice = if color_mode == ColorMode::Auto {
-            match self.writer.output {
+    pub fn time_mode(&mut self, time_mode: TimeMode) -> &mut Self {
+        self.writer.style.set_time_mode(time_mode);
+        self
+    }
+
+    /// Builds the configured writer.
+    ///
+    /// When the color mode is [`ColorMode::Auto`], the final color mode is
+    /// determined from the selected output destination. Terminal outputs
+    /// enable colors, while file output disables them.
+    pub fn build(self) -> Writer {
+        use std::io::IsTerminal;
+        let mut writer = self.writer;
+
+        let color_choice = if writer.style.color_mode() == ColorMode::Auto {
+            match writer.output() {
                 Output::Stdout => {
                     if std::io::stdout().is_terminal() {
                         ColorMode::Always
@@ -184,24 +200,10 @@ impl WriterBuilder {
                 Output::File(_) => ColorMode::Never,
             }
         } else {
-            color_mode
+            writer.style.color_mode()
         };
+        writer.style.set_color_mode(color_choice);
 
-        self.writer.style.set_color_mode(color_choice);
-        self
-    }
-
-    pub fn time_mode(&mut self, time_mode: TimeMode) -> &mut Self {
-        self.writer.style.set_time_mode(time_mode);
-        self
-    }
-
-    /// Builds the configured writer.
-    ///
-    /// When the color mode is [`ColorMode::Auto`], the final color mode is
-    /// determined from the selected output destination. Terminal outputs
-    /// enable colors, while file output disables them.
-    pub fn build(self) -> Writer {
-        self.writer
+        writer
     }
 }
