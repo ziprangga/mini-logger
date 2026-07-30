@@ -93,7 +93,7 @@
 //! When the `panic-hook` feature is enabled, a panic hook is installed.
 //! Panics are converted into log records and flushed immediately before termination.
 
-use crate::filter::{Filter, FilterBuilder, FilterLevel};
+use crate::filter::{Filter, FilterBuilder, Level};
 use crate::format::{Format, FormatBuilder};
 use crate::record::RecMessage;
 use crate::style::ColorMode;
@@ -182,7 +182,7 @@ impl Builder {
     }
 
     /// Adds a filter rule for a target.
-    pub fn filter(mut self, target: Option<&str>, level: FilterLevel) -> Self {
+    pub fn filter(mut self, target: Option<&str>, level: Level) -> Self {
         self.filter.filter_target(target, level);
         self
     }
@@ -254,7 +254,7 @@ impl Builder {
         let result = set_logger(logger);
 
         if result.is_ok() {
-            FilterLevel::set_level(max_level);
+            Level::set_level(max_level);
         }
 
         result
@@ -313,7 +313,7 @@ impl Logger {
     }
 
     /// Returns the maximum enabled log level.
-    pub fn get_max_level(&self) -> FilterLevel {
+    pub fn get_max_level(&self) -> Level {
         self.filter.max_level()
     }
 
@@ -402,7 +402,7 @@ fn trigger_panic() {
             let mut builder = RecMessage::builder();
 
             builder
-                .level(FilterLevel::Debug)
+                .level(Level::Debug)
                 .target(file)
                 .module(Some(file))
                 .msg(msg);

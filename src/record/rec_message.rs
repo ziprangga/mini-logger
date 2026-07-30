@@ -11,7 +11,7 @@
 //!
 //! [`RecMessageBuilder`] provides a convenient way to construct log records.
 
-use crate::filter::FilterLevel;
+use crate::filter::Level;
 
 /// Represents a single log record.
 ///
@@ -19,7 +19,7 @@ use crate::filter::FilterLevel;
 /// including filtering, formatting, and writing.
 #[derive(Clone, Debug)]
 pub struct RecMessage<'a> {
-    level: FilterLevel,
+    level: Level,
     target: &'a str,
     module: Option<&'a str>,
     msg: std::fmt::Arguments<'a>,
@@ -34,7 +34,7 @@ impl<'a> RecMessage<'a> {
 
     /// Returns the log level.
     #[inline]
-    pub fn level(&self) -> FilterLevel {
+    pub fn level(&self) -> Level {
         self.level
     }
 
@@ -60,7 +60,7 @@ impl<'a> RecMessage<'a> {
 impl Default for RecMessage<'_> {
     fn default() -> Self {
         Self {
-            level: FilterLevel::default(),
+            level: Level::default(),
             target: "",
             module: None,
             msg: format_args!(""),
@@ -85,7 +85,7 @@ impl<'a> RecMessageBuilder<'a> {
 
     /// Sets the log level.
     #[inline]
-    pub fn level(&mut self, level: FilterLevel) -> &mut Self {
+    pub fn level(&mut self, level: Level) -> &mut Self {
         self.record_msg.level = level;
         self
     }

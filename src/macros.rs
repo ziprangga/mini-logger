@@ -5,14 +5,14 @@
 // in downstream application code.
 //
 // It isolates level calculations, enforces single-evaluation rules for safety,
-// and yields a `(bool, FilterLevel)` tuple to successfully route around
+// and yields a `(bool, Level)` tuple to successfully route around
 // local scope lifetime boundaries.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __get_level {
     ($lvl:expr) => {{
         let lvl = $lvl;
-        let write_log = lvl as usize <= $crate::FilterLevel::get_level() as usize;
+        let write_log = lvl as usize <= $crate::Level::get_level() as usize;
         (write_log, lvl)
     }};
 }
@@ -74,20 +74,20 @@ macro_rules! log {
 // Level-specific macros
 #[macro_export]
 #[clippy::format_args]
-macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Error, $($arg)+) }; }
+macro_rules! error { ($($arg:tt)+) => { $crate::log!($crate::Level::Error, $($arg)+) }; }
 
 #[macro_export]
 #[clippy::format_args]
-macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Warn, $($arg)+) }; }
+macro_rules! warn { ($($arg:tt)+) => { $crate::log!($crate::Level::Warn, $($arg)+) }; }
 
 #[macro_export]
 #[clippy::format_args]
-macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Info, $($arg)+) }; }
+macro_rules! info { ($($arg:tt)+) => { $crate::log!($crate::Level::Info, $($arg)+) }; }
 
 #[macro_export]
 #[clippy::format_args]
-macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Debug, $($arg)+) }; }
+macro_rules! debug { ($($arg:tt)+) => { $crate::log!($crate::Level::Debug, $($arg)+) }; }
 
 #[macro_export]
 #[clippy::format_args]
-macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::FilterLevel::Trace, $($arg)+) }; }
+macro_rules! trace { ($($arg:tt)+) => { $crate::log!($crate::Level::Trace, $($arg)+) }; }

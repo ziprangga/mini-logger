@@ -16,11 +16,11 @@
 //! Configure filters directly in code.
 //!
 //! ```rust
-//! use mini_logger::{FilterBuilder, FilterLevel};
+//! use mini_logger::{FilterBuilder, Level};
 //!
 //! let filter = FilterBuilder::new()
-//!     .filter_target(None, FilterLevel::Info)
-//!     .filter_target(Some("my_crate"), FilterLevel::Debug)
+//!     .filter_target(None, Level::Info)
+//!     .filter_target(Some("my_crate"), Level::Debug)
 //!     .build();
 //! ```
 //!
@@ -43,15 +43,59 @@
 //! Both approaches can also be combined. When the same target is configured
 //! multiple times, the later configuration replaces the earlier one.
 
-mod filter_env;
-mod filter_level;
-mod filter_target;
+mod level;
 
-pub use filter_env::FilterEnv;
-pub use filter_level::FilterLevel;
-pub use filter_target::FilterTarget;
+pub use level::Level;
 
 use crate::record::RecMessage;
+
+/// A filter directive consisting of an optional target prefix
+/// and an associated maximum enabled log level.
+///
+/// A `None` target represents the global/default filter level.
+#[derive(Clone, Debug)]
+pub struct Target {
+    target: Option<String>,
+    level: Level,
+}
+
+impl Target {
+    /// Creates a new target filter directive.
+    pub fn new(tgt: Option<String>, lvl: Level) -> Self {
+        Self {
+            target: tgt,
+            level: lvl,
+        }
+    }
+
+    /// Returns the target prefix, or `None` for the global directive.
+    pub fn target(&self) -> Option<&str> {
+        self.target.as_deref()
+    }
+
+    /// Returns the configured log level.
+    pub fn level(&self) -> Level {
+        self.level
+    }
+
+    /// Returns the configured level if this directive applies to the target.
+    ///
+    /// A directive matches when the target starts with the configured target
+    /// prefix. If no target prefix is configured, the directive acts as the
+    /// global default and always matches.
+    pub fn level_for(&self, tgt: &str) -> Option<Level> {
+        match &self.target {
+            Some(name) => {
+                if tgt.starts_with(name) {
+                    Some(self.level)
+                } else {
+                    None
+                }
+            }
+            None => Some(self.level),
+        }
+    }
+}
 
 /// Compiled filter used to determine whether a log record should be emitted.
 ///
@@ -61,18 +105,22 @@ use crate::record::RecMessage;
 /// - and optionally whether the message contains a configured substring.
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
-    filter_target: Vec<FilterTarget>,
-    filter_string: Option<String>,
+    targets: Vec<Target>,
+    message: Option<String>,
 }
 
 impl Filter {
+    pub fn builder() -> FilterBuilder {
+        FilterBuilder::new()
+    }
+
     /// Returns the highest log level configured by this filter.
-    pub fn max_level(&self) -> FilterLevel {
-        self.filter_target
+    pub fn max_level(&self) -> Level {
+        self.targets
             .iter()
             .map(|d| d.level())
             .max()
-            .unwrap_or(FilterLevel::Off)
+            .unwrap_or(Level::Off)
     }
 
     /// Returns `true` if the log record passes both level and message filtering.
@@ -92,7 +140,7 @@ impl Filter {
     /// If no message filter is configured, every message matches. Otherwise,
     /// the message must contain the configured substring.
     fn is_match(&self, s: &str) -> bool {
-        match &self.filter_string {
+        match &self.message {
             Some(f) => s.contains(f),
             None => true,
         }
@@ -100,19 +148,19 @@ impl Filter {
 
     /// Determines whether a log level is enabled for the given target.
     ///
-    /// The effective level is computed by evaluating every matching directive.
-    /// Directives are sorted by target length during `build()`, so broader
-    /// target prefixes are evaluated first and more specific prefixes override
-    /// them.
-    fn enabled(&self, target: &str, log_level: &FilterLevel) -> bool {
-        let mut level = FilterLevel::Off;
+    /// Every matching directive is evaluated in order. Since target
+    /// directives are sorted by prefix length during `build()`,
+    /// broader prefixes are applied first and more specific prefixes
+    /// override them.
+    fn enabled(&self, tgt: &str, lvl: &Level) -> bool {
+        let mut level = Level::Off;
 
-        for d in &self.filter_target {
-            if let Some(lvl) = d.level_for(target) {
+        for d in &self.targets {
+            if let Some(lvl) = d.level_for(tgt) {
                 level = lvl;
             }
         }
-        *log_level <= level
+        *lvl <= level
     }
 }
 
@@ -139,37 +187,45 @@ impl FilterBuilder {
     /// If another directive exists for the same target, it is replaced.
     /// This guarantees that each target appears at most once before
     /// the filter is built.
-    fn insert_filter(&mut self, mut filter_target: FilterTarget) {
+    fn insert_filter(&mut self, mut tgt: Target) {
         if let Some(pos) = self
             .filter
-            .filter_target
+            .targets
             .iter()
-            .position(|d| d.target() == filter_target.target())
+            .position(|d| d.target() == tgt.target())
         {
-            std::mem::swap(&mut self.filter.filter_target[pos], &mut filter_target);
+            std::mem::swap(&mut self.filter.targets[pos], &mut tgt);
         } else {
-            self.filter.filter_target.push(filter_target);
+            self.filter.targets.push(tgt);
         }
     }
 
     /// Adds or replaces a target-specific filter directive.
-    pub fn filter_target(&mut self, target: Option<&str>, level: FilterLevel) -> &mut Self {
-        self.insert_filter(FilterTarget::new(target.map(|s| s.to_owned()), level));
+    pub fn filter_target(&mut self, tgt: Option<&str>, lvl: Level) -> &mut Self {
+        self.insert_filter(Target::new(tgt.map(|s| s.to_owned()), lvl));
         self
     }
 
     /// Restricts output to log messages containing the given substring.
-    pub fn filter_string(&mut self, s: impl Into<String>) -> &mut Self {
-        self.filter.filter_string = Some(s.into());
+    pub fn filter_message(&mut self, s: impl Into<String>) -> &mut Self {
+        self.filter.message = Some(s.into());
         self
     }
 
     /// Loads filter directives from an environment variable.
+    ///
+    /// The environment variable value must contain a comma-separated
+    /// filter string such as:
+    ///
+    /// ```text
+    /// MY_LOG=info,my_crate=debug
+    /// ```
+    ///
+    /// Parsed directives are merged into the builder configuration.
     pub fn filter_env(&mut self, var_name: &str) -> &mut Self {
-        if let Some(env) = FilterEnv::from_env_var(var_name) {
-            for filter_target in env.parse_filter_string() {
-                self.insert_filter(filter_target);
-            }
+        let envs = parse_var_str(var_name);
+        for target in envs {
+            self.insert_filter(target);
         }
         self
     }
@@ -183,13 +239,13 @@ impl FilterBuilder {
     /// During matching, every matching directive updates the effective level,
     /// allowing more specific target prefixes to override broader ones.
     pub fn build(mut self) -> Filter {
-        let mut filter_target = Vec::new();
+        let mut in_targets = Vec::new();
 
-        if self.filter.filter_target.is_empty() {
-            filter_target.push(FilterTarget::new(None, FilterLevel::Debug));
+        if self.filter.targets.is_empty() {
+            in_targets.push(Target::new(None, Level::Debug));
         } else {
-            filter_target = std::mem::take(&mut self.filter.filter_target);
-            filter_target.sort_by(|a, b| {
+            in_targets = std::mem::take(&mut self.filter.targets);
+            in_targets.sort_by(|a, b| {
                 let alen = a.target().as_ref().map(|a| a.len()).unwrap_or(0);
                 let blen = b.target().as_ref().map(|b| b.len()).unwrap_or(0);
                 alen.cmp(&blen)
@@ -197,8 +253,8 @@ impl FilterBuilder {
         }
 
         Filter {
-            filter_target: std::mem::take(&mut filter_target),
-            filter_string: std::mem::take(&mut self.filter.filter_string),
+            targets: std::mem::take(&mut in_targets),
+            message: std::mem::take(&mut self.filter.message),
         }
     }
 }
@@ -207,4 +263,46 @@ impl Default for FilterBuilder {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Parses a comma-separated filter string into target directives.
+///
+/// Directives may be either:
+///
+/// - `level` for a global filter level.
+/// - `target=level` for a target-specific filter.
+///
+/// Examples:
+///
+/// ```text
+/// info
+/// my_crate=debug
+/// info,my_crate=debug,network=trace
+/// ```
+///
+/// Invalid log levels are treated as [`Level::Off`].
+pub fn parse_var_str(var_name: &str) -> Vec<Target> {
+    let mut out = Vec::new();
+
+    for directive in var_name.split(',') {
+        let directive = directive.trim();
+        if directive.is_empty() {
+            continue;
+        }
+
+        let mut parts = directive.splitn(2, '=');
+        let first = parts.next().unwrap().trim();
+        let second = parts.next().map(|s| s.trim());
+
+        let (target, level_str) = match second {
+            Some(lvl) => (Some(first.to_owned()), lvl),
+            None => (None, first),
+        };
+
+        let level = level_str.parse::<Level>().unwrap_or(Level::Off);
+
+        out.push(Target::new(target, level));
+    }
+
+    out
 }

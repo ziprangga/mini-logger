@@ -14,7 +14,7 @@ fn test_logging_match() {
     let logger = Logger::get().expect("Logger not initialized");
 
     let msg = RecMessage::builder()
-        .level(FilterLevel::Info)
+        .level(Level::Info)
         .target("test")
         .module(Some("test"))
         .msg(format_args!("Test message 2"))
@@ -45,7 +45,7 @@ fn test_multithreaded_logging() {
     let logger = Logger::get().expect("Logger not initialized");
 
     let msg = RecMessage::builder()
-        .level(FilterLevel::Debug)
+        .level(Level::Debug)
         .target("thread-test")
         .module(Some("thread-test"))
         .msg(format_args!("Thread 3 message 99"))

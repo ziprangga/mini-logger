@@ -13,12 +13,12 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-static FILTER_LEVEL: AtomicUsize = AtomicUsize::new(FilterLevel::Off as usize);
+static LEVEL: AtomicUsize = AtomicUsize::new(Level::Off as usize);
 
 /// Log verbosity level used to determine whether log records are enabled.
 #[repr(usize)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum FilterLevel {
+pub enum Level {
     Off = 0,
     Error = 1,
     Warn = 2,
@@ -27,38 +27,38 @@ pub enum FilterLevel {
     Trace = 5,
 }
 
-impl FilterLevel {
+impl Level {
     /// Sets the global maximum enabled log level.
     #[inline]
     pub fn set_level(self) {
-        FILTER_LEVEL.store(self as usize, Ordering::Relaxed);
+        LEVEL.store(self as usize, Ordering::Relaxed);
     }
 
     /// Returns the currently configured global level.
     #[inline]
-    pub fn get_level() -> FilterLevel {
-        match FILTER_LEVEL.load(Ordering::Relaxed) {
-            1 => FilterLevel::Error,
-            2 => FilterLevel::Warn,
-            3 => FilterLevel::Info,
-            4 => FilterLevel::Debug,
-            5 => FilterLevel::Trace,
-            _ => FilterLevel::Off,
+    pub fn get_level() -> Level {
+        match LEVEL.load(Ordering::Relaxed) {
+            1 => Level::Error,
+            2 => Level::Warn,
+            3 => Level::Info,
+            4 => Level::Debug,
+            5 => Level::Trace,
+            _ => Level::Off,
         }
     }
 
     /// Converts a numeric representation into a filter level.
     ///
-    /// Any value outside the valid range is treated as [`FilterLevel::Off`].
+    /// Any value outside the valid range is treated as [`Level::Off`].
     #[inline]
     pub fn from_usize(val: usize) -> Self {
         match val {
-            1 => FilterLevel::Error,
-            2 => FilterLevel::Warn,
-            3 => FilterLevel::Info,
-            4 => FilterLevel::Debug,
-            5 => FilterLevel::Trace,
-            _ => FilterLevel::Off,
+            1 => Level::Error,
+            2 => Level::Warn,
+            3 => Level::Info,
+            4 => Level::Debug,
+            5 => Level::Trace,
+            _ => Level::Off,
         }
     }
 
@@ -66,12 +66,12 @@ impl FilterLevel {
     #[inline]
     pub fn as_str(&self) -> &'static str {
         match self {
-            FilterLevel::Off => "OFF",
-            FilterLevel::Error => "ERROR",
-            FilterLevel::Warn => "WARN",
-            FilterLevel::Info => "INFO",
-            FilterLevel::Debug => "DEBUG",
-            FilterLevel::Trace => "TRACE",
+            Level::Off => "OFF",
+            Level::Error => "ERROR",
+            Level::Warn => "WARN",
+            Level::Info => "INFO",
+            Level::Debug => "DEBUG",
+            Level::Trace => "TRACE",
         }
     }
 }
@@ -79,24 +79,24 @@ impl FilterLevel {
 /// Parses a filter level from a case-insensitive string.
 ///
 /// Also accepts `"warning"` as an alias for `"warn"`.
-impl std::str::FromStr for FilterLevel {
+impl std::str::FromStr for Level {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "off" => Ok(FilterLevel::Off),
-            "error" => Ok(FilterLevel::Error),
-            "warn" | "warning" => Ok(FilterLevel::Warn),
-            "info" => Ok(FilterLevel::Info),
-            "debug" => Ok(FilterLevel::Debug),
-            "trace" => Ok(FilterLevel::Trace),
+            "off" => Ok(Level::Off),
+            "error" => Ok(Level::Error),
+            "warn" | "warning" => Ok(Level::Warn),
+            "info" => Ok(Level::Info),
+            "debug" => Ok(Level::Debug),
+            "trace" => Ok(Level::Trace),
             _ => Err(()),
         }
     }
 }
 
-impl Default for FilterLevel {
+impl Default for Level {
     fn default() -> Self {
-        FilterLevel::Debug
+        Level::Debug
     }
 }

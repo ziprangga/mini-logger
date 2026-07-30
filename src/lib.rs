@@ -170,9 +170,7 @@ mod macros;
 
 pub use filter::Filter;
 pub use filter::FilterBuilder;
-pub use filter::FilterEnv;
-pub use filter::FilterLevel;
-pub use filter::FilterTarget;
+pub use filter::Level;
 pub use format::Format;
 pub use format::FormatBuilder;
 pub use format::FormatConfig;

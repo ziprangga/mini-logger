@@ -4,7 +4,7 @@
 // expansion footprints as lightweight as possible, and halts binary size bloat.
 #[doc(hidden)]
 mod __private {
-    use crate::FilterLevel;
+    use crate::Level;
     use crate::Logger;
     use crate::RecMessage;
 
@@ -15,7 +15,7 @@ mod __private {
     // function ensures the compiler only generates this machine code once.
     fn log_reduce_size(
         logger: &Logger,
-        level: FilterLevel,
+        level: Level,
         target: &str,
         module: &'static str,
         msg: std::fmt::Arguments,
@@ -37,7 +37,7 @@ mod __private {
     // macro expansion, keeping compilation fast and binaries lean.
     pub fn log_build<'a>(
         logger: &Logger,
-        level: FilterLevel,
+        level: Level,
         target: &str,
         module: &'static str,
         msg: std::fmt::Arguments,

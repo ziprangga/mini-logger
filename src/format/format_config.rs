@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::io::{self, Write};
 
-use crate::filter::FilterLevel;
+use crate::filter::Level;
 use crate::record::RecMessage;
 use crate::style::TimestampPrecision;
 use crate::writer::BufferFormatter;
@@ -147,12 +147,12 @@ impl FormatLayoutWriter<'_> {
 
         use crate::style::Color;
         let color = match record_msg.level() {
-            FilterLevel::Off => Color::Reset,
-            FilterLevel::Error => Color::Red,
-            FilterLevel::Warn => Color::Yellow,
-            FilterLevel::Info => Color::Green,
-            FilterLevel::Debug => Color::Blue,
-            FilterLevel::Trace => Color::Blue,
+            Level::Off => Color::Reset,
+            Level::Error => Color::Red,
+            Level::Warn => Color::Yellow,
+            Level::Info => Color::Green,
+            Level::Debug => Color::Blue,
+            Level::Trace => Color::Blue,
         };
         let level_str = record_msg.level().as_str();
 
