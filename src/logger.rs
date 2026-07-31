@@ -71,17 +71,21 @@
 //!
 //! # Formatting
 //!
-//! Formatting is handled by the [`Format`] system.
-//! It supports both default formatting options and fully custom format functions.
+//! Formatting is handled by [`Formatter`].
 //!
-//! Custom formatting receives a [`BufferFormatter`] and a [`RecMessage`].
+//! The built-in renderer supports configurable metadata fields such as
+//! timestamps, log levels, targets, and module paths.
+//!
+//! Applications can also provide a custom renderer by implementing
+//! [`RenderRecord`] or by supplying a compatible closure.
 //!
 //! # Thread-local buffering
 //!
-//! To improve performance, each thread stores a reusable [`BufferFormatter`].
+//! To improve performance, each thread stores a reusable [`Buffer`].
 //! This avoids repeated allocations during logging.
 //!
-//! If thread-local storage is unavailable, a fresh buffer is created per call.
+//! If thread-local storage is unavailable, a temporary buffer is allocated
+//! for the current log operation.
 //!
 //! # Runtime control (optional feature)
 //!
@@ -94,10 +98,10 @@
 //! Panics are converted into log records and flushed immediately before termination.
 
 use crate::filter::{Filter, FilterBuilder, Level};
-use crate::format::{Format, FormatBuilder};
+use crate::format::{Formatter, FormatterBuilder, RenderRecord};
 use crate::record::RecMessage;
-use crate::style::{ColorMode, TimeMode};
-use crate::writer::{Writer, WriterBuilder, try_with_buf_formatter_slot};
+use crate::style::{ColorMode, TimeMode, TimePrecision};
+use crate::writer::{Buffer, Writer, WriterBuilder, try_with_buffer_slot};
 
 use std::sync::OnceLock;
 
@@ -144,6 +148,7 @@ pub fn init() {
 /// Builder for constructing a [`Logger`].
 ///
 /// This type provides a fluent API for configuring:
+///
 /// - filters
 /// - output destinations
 /// - formatting rules
@@ -160,7 +165,7 @@ pub fn init() {
 pub struct Builder {
     filter: FilterBuilder,
     writer: WriterBuilder,
-    format: FormatBuilder,
+    formatter: FormatterBuilder,
 }
 
 impl Builder {
@@ -169,7 +174,7 @@ impl Builder {
         Self::default()
     }
 
-    /// Creates a new builder with default settings.
+    /// Configures filtering from the `RUST_LOG` environment variable.
     pub fn env_default(mut self) -> Self {
         self.filter.filter_env("RUST_LOG");
         self
@@ -205,44 +210,50 @@ impl Builder {
         self
     }
 
-    /// Set output color mode.
+    /// Sets the color mode used during formatting.
     pub fn color_mode(mut self, color_mode: ColorMode) -> Self {
-        self.writer.color_mode(color_mode);
+        self.formatter.color_mode(color_mode);
         self
     }
 
-    /// Set output time mode.
+    /// Sets the timestamp mode used during formatting.
     pub fn time_mode(mut self, time_mode: TimeMode) -> Self {
-        self.writer.time_mode(time_mode);
+        self.formatter.time_mode(time_mode);
         self
     }
 
-    /// Enables/disables printing log level.
+    /// Sets the timestamp precision used during formatting.
+    pub fn time_precision(mut self, tp: TimePrecision) -> Self {
+        self.formatter.time_precision(tp);
+        self
+    }
+
+    /// Enables or disables writing the log level.
     pub fn format_level(mut self, write: bool) -> Self {
-        self.format.format_default().level(write);
+        self.formatter.level(write);
         self
     }
 
-    /// Enables/disables printing log level.
+    /// Enables or disables writing the log target.
     pub fn format_target(mut self, write: bool) -> Self {
-        self.format.format_default().target(write);
+        self.formatter.target(write);
         self
     }
 
-    /// Enables/disables printing module path.
+    /// Enables or disables writing the log path.
     pub fn format_module_path(mut self, write: bool) -> Self {
-        self.format.format_default().module_path(write);
+        self.formatter.module_path(write);
         self
     }
 
-    /// Sets a custom formatting function.
+    /// Configures a custom record renderer.
     ///
-    /// The function receives a buffer and the log record.
-    pub fn format_custom<F>(mut self, format: F) -> Self
+    /// The supplied renderer replaces the built-in renderer.
+    pub fn format_with<F>(mut self, format: F) -> Self
     where
-        F: Fn(&mut Writer, &RecMessage<'_>) -> std::io::Result<()> + Sync + Send + 'static,
+        F: RenderRecord + Send + Sync + 'static,
     {
-        self.format.format_custom(format);
+        self.formatter.format_with(format);
         self
     }
 
@@ -266,6 +277,9 @@ impl Builder {
         result
     }
 
+    /// Builds and installs the logger globally.
+    ///
+    /// Panics if a global logger has already been installed.
     pub fn init(self) {
         self.try_init()
             .expect("Builder::init should not be called after logger initialized");
@@ -273,10 +287,12 @@ impl Builder {
 
     /// Builds the logger without installing it globally.
     pub fn build(self) -> Logger {
+        let writer = self.writer.build();
+        let formatter = self.formatter.build(writer.output());
         Logger {
-            writer: self.writer.build(),
+            writer,
             filter: self.filter.build(),
-            format: self.format.build(),
+            formatter,
             #[cfg(feature = "runtime-control")]
             active: AtomicBool::new(true),
         }
@@ -285,11 +301,11 @@ impl Builder {
 
 /// Core logger instance.
 ///
-/// Holds filter, format, and writer components.
+/// Holds the filter, formatter, and writer components used during logging.
 pub struct Logger {
     filter: Filter,
     writer: Writer,
-    format: Format,
+    formatter: Formatter,
     #[cfg(feature = "runtime-control")]
     active: AtomicBool,
 }
@@ -342,45 +358,37 @@ impl Logger {
             return;
         }
 
-        let write_and_flush = |writer: &mut Writer| {
+        let write_and_flush = |buffer: &mut Buffer| {
             let _ = self
-                .format
-                .format_record(writer, record_msg)
-                .and_then(|_| writer.write_buffer());
+                .formatter
+                .render_record(buffer, record_msg)
+                .and_then(|_| self.writer.write_buffer(buffer));
 
-            writer.clear();
+            buffer.clear();
         };
 
         //Use thread-local buffer
-        let printed = try_with_buf_formatter_slot(|slot| match slot {
-            Some(writer) => {
-                write_and_flush(writer);
+        let printed = try_with_buffer_slot(|slot| match slot {
+            Some(buffer) => {
+                write_and_flush(buffer);
             }
             None => {
-                let mut writer = self.writer.clone();
-                write_and_flush(&mut writer);
-                *slot = Some(writer);
+                let mut buffer = Buffer::new();
+                write_and_flush(&mut buffer);
+                *slot = Some(buffer);
             }
         })
         .is_some();
 
         // Fallback if thread-local unavailable (thread shutting down)
         if !printed {
-            let mut writer = self.writer.clone();
-            write_and_flush(&mut writer);
+            let mut buffer = Buffer::new();
+            write_and_flush(&mut buffer);
         }
     }
 
-    /// Flushes all buffered output.
+    /// Flushes the configured output destination.
     pub fn flush(&self) {
-        // Flush all thread-local formatters
-        let _ = try_with_buf_formatter_slot(|slot| {
-            if let Some(writer) = slot {
-                let _ = writer.write_buffer();
-                writer.clear();
-            }
-        });
-
         let _ = self.writer.flush();
     }
 }

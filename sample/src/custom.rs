@@ -31,36 +31,38 @@ use std::io::Write;
 pub fn custom() {
     mini_logger::Builder::new()
         .filter(Some("sample"), Level::Debug)
-        .format_custom(|writer, message| {
-            let color = match message.level() {
-                Level::Off => Color::Reset,
-                Level::Error => Color::Red,
-                Level::Warn => Color::Yellow,
-                Level::Info => Color::Green,
-                Level::Debug => Color::Blue,
-                Level::Trace => Color::Blue,
-            };
-            let level_str = message.level().as_str();
-            let ts = writer
-                .style()
-                .time_mode()
-                .timestamp(TimestampPrecision::default());
-            let color_mode = ColorMode::Auto;
+        .format_with(
+            |formatter: &Formatter, buffer: &mut Buffer, message: &RecMessage<'_>| {
+                let color = match message.level() {
+                    Level::Off => Color::Reset,
+                    Level::Error => Color::Red,
+                    Level::Warn => Color::Yellow,
+                    Level::Info => Color::Green,
+                    Level::Debug => Color::Blue,
+                    Level::Trace => Color::Blue,
+                };
+                let level_str = message.level().as_str();
+                let ts = formatter
+                    .style()
+                    .time_mode()
+                    .timestamp(TimestampPrecision::default());
+                let color_mode = ColorMode::Auto;
 
-            writeln!(
-                writer,
-                "{} [{}{}{}] - {}",
-                ts,
-                color_mode.color(color), // Start style
-                level_str,
-                color_mode.reset(), // Reset style
-                message.msg()
-            )
-        })
+                writeln!(
+                    buffer,
+                    "{} [{}{}{}] - {}",
+                    ts,
+                    color_mode.color(color), // Start style
+                    level_str,
+                    color_mode.reset(), // Reset style
+                    message.msg()
+                )
+            },
+        )
         .output_stdout()
         .init();
 
     info!("MINI_LOGGER");
-    debug!("default debug");
+    debug!("custom debug");
     info!("This use custom");
 }

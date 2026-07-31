@@ -1,189 +1,203 @@
 //! Log record formatting.
 //!
-//! This module defines how log records are formatted before being written
-//! to the output.
+//! This module defines how log records are rendered before being written to an
+//! output destination.
 //!
-//! Formatting can be configured in two ways:
+//! Formatting can be configured using [`FormatterBuilder`].
 //!
-//! - Use the built-in formatter with [`DefaultFormat`].
-//! - Provide a custom formatter by implementing [`FormatCustom`].
-//!
-//! # Built-in Formatter
-//!
-//! The built-in formatter allows configuring which header fields are
-//! included in the output, such as:
+//! The built-in renderer supports configurable header fields such as:
 //!
 //! - timestamp
 //! - log level
 //! - target
 //! - module path
 //!
-//! # Custom Formatter
-//!
-//! Applications can completely customize the output format by supplying
-//! a closure or type implementing [`FormatCustom`].
-//!
-//! # Example
-//!
-//! ## Built-in Formatter
-//!
-//! ```rust
-//! use mini_logger::FormatBuilder;
-//!
-//! let mut builder = FormatBuilder::default();
-//!
-//! builder
-//!     .format_default()
-//!     .target(true)
-//!     .module_path(false);
-//! ```
-//!
-//! ## Custom Formatter
-//!
-//! ```rust
-//! use std::io::Write;
-//!
-//! use mini_logger::FormatBuilder;
-//!
-//! let mut builder = FormatBuilder::default();
-//!
-//! builder.format_custom(|buf, record| {
-//!     writeln!(
-//!         buf,
-//!         "[{}] {}",
-//!         record.level().as_str(),
-//!         record.msg()
-//!     )
-//! });
+//! Applications can also provide a custom renderer by implementing
+//! [`RenderRecord`] or by supplying a compatible closure.
 //! ```
 
-mod default_format;
-pub use default_format::DefaultFormat;
+mod default_render;
 
 use crate::record::RecMessage;
-use crate::writer::Writer;
-use std::io;
+use crate::style::{ColorMode, Style, TimeMode, TimePrecision};
+use crate::writer::Buffer;
+use crate::writer::Output;
 
-/// Trait implemented by custom log formatters.
+/// Renders a log record into a [`Buffer`].
 ///
-/// This trait allows applications to completely customize how log
-/// records are written.
-pub trait FormatCustom {
-    /// Formats a log record using a custom layout.
-    ///
-    /// Implementations are responsible for writing the complete log record
-    /// to the provided buffer.
-    fn format_custom_layout(
+/// Implementations are responsible for formatting record data and writing the
+/// resulting bytes into the provided buffer.
+pub trait RenderRecord {
+    fn render(
         &self,
-        writer: &mut Writer,
-        record_msg: &RecMessage<'_>,
+        formatter: &Formatter,
+        buffer: &mut Buffer,
+        record: &RecMessage<'_>,
     ) -> std::io::Result<()>;
 }
 
-impl<F> FormatCustom for F
+impl<F> RenderRecord for F
 where
-    F: Fn(&mut Writer, &RecMessage<'_>) -> io::Result<()>,
+    F: Fn(&Formatter, &mut Buffer, &RecMessage<'_>) -> std::io::Result<()> + Send + Sync,
 {
-    fn format_custom_layout(
+    fn render(
         &self,
-        writer: &mut Writer,
-        record_msg: &RecMessage<'_>,
-    ) -> io::Result<()> {
-        (self)(writer, record_msg)
+        formatter: &Formatter,
+        buffer: &mut Buffer,
+        record: &RecMessage<'_>,
+    ) -> std::io::Result<()> {
+        (self)(formatter, buffer, record)
     }
 }
 
-/// Configured log formatter.
+/// Log record formatting configuration.
 ///
-/// A formatter is either the built-in configurable formatter or a
-/// user-provided custom formatter.
-pub enum Format {
-    Default(DefaultFormat),
-    Custom(Box<dyn FormatCustom + Send + Sync>),
+/// A formatter controls:
+///
+/// - style settings such as colors and timestamps,
+/// - which metadata fields are included,
+/// - the renderer used to produce the final output.
+///
+/// If no custom renderer is configured, the built-in renderer is used.
+pub struct Formatter {
+    style: Style,
+    level: bool,
+    target: bool,
+    module_path: bool,
+    renderer: Option<Box<dyn RenderRecord + Send + Sync>>,
 }
 
-impl Format {
-    /// Formats a log record using the configured formatter.
+impl Formatter {
+    /// Creates a new [`FormatterBuilder`].
+    pub fn builder() -> FormatterBuilder {
+        FormatterBuilder::new()
+    }
+
+    /// Enables or disables writing the log level.
+    pub fn level(&self) -> bool {
+        self.level
+    }
+
+    /// Enables or disables writing the log target.
+    pub fn target(&self) -> bool {
+        self.target
+    }
+
+    /// Enables or disables writing the module path.
+    pub fn module_path(&self) -> bool {
+        self.module_path
+    }
+
+    /// Returns the active style configuration.
+    pub fn style(&self) -> &Style {
+        &self.style
+    }
+
+    /// Renders a record into the provided buffer.
     ///
-    /// Calls either the built-in formatter or the user-provided custom
-    /// formatter depending on the active [`Format`] variant.
-    pub fn format_record(
+    /// The configured custom renderer is used when present. Otherwise the
+    /// built-in renderer is used.
+    pub fn render_record(
         &self,
-        writer: &mut Writer,
-        record_msg: &RecMessage<'_>,
-    ) -> io::Result<()> {
-        match self {
-            Format::Default(f) => f.format_write_layout(writer, record_msg),
-            Format::Custom(f) => f.format_custom_layout(writer, record_msg),
+        buffer: &mut Buffer,
+        record: &RecMessage<'_>,
+    ) -> std::io::Result<()> {
+        match &self.renderer {
+            Some(renderer) => renderer.render(self, buffer, record),
+            None => default_render::DefaultRenderer.render(self, buffer, record),
         }
     }
 }
 
-impl Default for Format {
-    /// Creates the default built-in formatter.
+impl Default for Formatter {
     fn default() -> Self {
-        Format::Default(DefaultFormat::default())
+        Self {
+            style: Style::default(),
+            level: true,
+            target: false,
+            module_path: true,
+            renderer: None,
+        }
     }
 }
 
-/// Builder for constructing a [`Format`].
-///
-/// Supports either the built-in formatter or a custom formatter.
-/// By default, the built-in formatter is used.
-///
-/// Calling [`FormatBuilder::format_default`] returns the existing
-/// [`DefaultFormat`] configuration when the builder is already using
-/// the built-in formatter. Existing options are preserved.
-///
-/// If the builder currently contains a custom formatter, calling
-/// [`FormatBuilder::format_default`] replaces it with a new
-/// [`DefaultFormat`].
-///
-/// Call [`FormatBuilder::format_custom`] to replace the built-in formatter
-/// with a custom formatter.
-#[derive(Default)]
-pub struct FormatBuilder {
-    format: Format,
+/// Builder for constructing a [`Formatter`].
+pub struct FormatterBuilder {
+    formatter: Formatter,
 }
 
-impl FormatBuilder {
-    //// Selects the built-in formatter.
-    ///
-    /// Returns the associated [`DefaultFormat`] so its options can be
-    /// configured.
-    ///
-    /// If the builder is already configured with the built-in formatter,
-    /// the existing configuration is preserved.
-    ///
-    /// If a custom formatter is currently configured, it is replaced with
-    /// a new default built-in formatter.
-    pub fn format_default(&mut self) -> &mut DefaultFormat {
-        let is_default = match &self.format {
-            Format::Default(_) => true,
-            Format::Custom(_) => false,
-        };
-
-        if !is_default {
-            self.format = Format::Default(DefaultFormat::default());
-        }
-
-        match &mut self.format {
-            Format::Default(cfg) => cfg,
-            _ => unreachable!("Format should now always be Default"),
+impl FormatterBuilder {
+    /// Creates a builder with default formatting configuration.
+    pub fn new() -> Self {
+        Self {
+            formatter: Formatter::default(),
         }
     }
 
-    /// Replaces the built-in formatter with a custom formatter.
-    pub fn format_custom<F>(&mut self, f: F) -> &mut Self
+    /// Enables or disables writing the log level.
+    pub fn level(&mut self, write: bool) -> &mut Self {
+        self.formatter.level = write;
+        self
+    }
+
+    /// Enables or disables writing the log target.
+    pub fn target(&mut self, write: bool) -> &mut Self {
+        self.formatter.target = write;
+        self
+    }
+
+    /// Enables or disables writing the module path.
+    pub fn module_path(&mut self, write: bool) -> &mut Self {
+        self.formatter.module_path = write;
+        self
+    }
+
+    /// Sets the color mode.
+    pub fn color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
+        self.formatter.style.set_color_mode(color_mode);
+        self
+    }
+
+    /// Sets the timestamp mode.
+    pub fn time_mode(&mut self, time_mode: TimeMode) -> &mut Self {
+        self.formatter.style.set_time_mode(time_mode);
+        self
+    }
+
+    /// Sets the timestamp precision.
+    pub fn time_precision(&mut self, time_precision: TimePrecision) -> &mut Self {
+        self.formatter.style.set_time_precision(time_precision);
+        self
+    }
+
+    /// Configures a custom record renderer.
+    ///
+    /// The supplied renderer replaces the built-in renderer.
+    pub fn format_with<F>(&mut self, format: F) -> &mut Self
     where
-        F: FormatCustom + Send + Sync + 'static,
+        F: RenderRecord + Send + Sync + 'static,
     {
-        self.format = Format::Custom(Box::new(f));
+        self.formatter.renderer = Some(Box::new(format));
         self
     }
 
     /// Builds the configured formatter.
-    pub fn build(self) -> Format {
-        self.format
+    ///
+    /// Automatic color mode resolution is performed against the specified output
+    /// destination before the formatter is returned.
+    pub fn build(self, output: &Output) -> Formatter {
+        let mut format = self.formatter;
+
+        let color_choice = format.style().color_mode().resolve(output);
+
+        format.style.set_color_mode(color_choice);
+
+        format
+    }
+}
+
+impl Default for FormatterBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

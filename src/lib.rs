@@ -8,10 +8,10 @@
 //!
 //! This crate provides a lightweight, configurable logging system with:
 //!
-//! - Level + target filtering
-//! - Flexible formatting system
-//! - Support color
-//! - Multiple output backends (stdout, stderr, file)
+//! - Level and target filtering
+//! - Flexible record formatting
+//! - ANSI color support
+//! - Multiple output destinations (stdout, stderr, file)
 //! - Thread-local buffering for performance
 //! - Optional runtime control features
 //! - Optional panic hook integration
@@ -21,46 +21,36 @@
 //! This crate is inspired by the [`log`](https://docs.rs/log) and
 //! [`env_logger`](https://docs.rs/env_logger) crates.
 //!
-//! It follows the same general logging model but integrates functionality
-//! that is typically split across multiple crates.
+//! It follows the same general logging model while integrating functionality
+//! that is often split across multiple crates.
 //!
-//! - This crate **does not support `no_std` environments**.
-//!   It is designed specifically for **high-level application development**, not embedded or constrained systems.
+//! # Platform Support
 //!
-//! - This reduces the need for additional dependencies that are typically used
-//!   in high-level application logging setups.
+//! This crate does not support `no_std` environments.
 //!
-//! - This crate provides **additional control over runtime behavior**
-//!   (such as enabling/disabling logging at runtime).
-//!
-//! - This crate provides a **configurable single output destination per logger instance**
-//!   (stdout, stderr, or file).
-//!
-//! - This crate is a **single all-in-one logging implementation** that includes:
-//!   - logger runtime
-//!   - filtering system
-//!   - formatting system
-//!   - output handling
+//! It is intended for high-level application development and relies on
+//! standard library facilities such as file I/O, thread-local storage,
+//! and synchronization primitives.
 //!
 //! # Architecture
 //!
-//! The crate is split into several internal modules:
+//! The crate is organized into several internal modules:
 //!
-//! - [`logger`] → global logger runtime and initialization
-//! - [`filter`] → log filtering rules (level + target + env support)
-//! - [`format`] → log formatting system (default + custom)
-//! - [`writer`] → output handling (stdout/stderr/file + buffering)
-//! - [`record`] → log record structure (`RecMessage`)
-//! - [`style`] → color + timestamp formatting utilities
+//! - `logger` → global logger runtime and initialization
+//! - `filter` → log filtering rules (level, target, environment support)
+//! - `format` → log record formatting and rendering
+//! - `writer` → output destinations and buffer management
+//! - `record` → log record representation ([`RecMessage`])
+//! - `style` → color, timestamp, and formatting-related configuration
 //!
 //! Internal-only modules:
 //!
-//! - `macros` → logging macros (not public API)
+//! - `macros` → logging macros implementation
 //! - `__private_helper` → internal utilities
 //!
 //! # Usage
 //!
-//! Typical usage:
+//! Basic initialization:
 //!
 //! ```rust
 //! use mini_logger::init;
@@ -68,7 +58,7 @@
 //! init();
 //! ```
 //!
-//! Or advanced configuration:
+//! Custom configuration:
 //!
 //! ```rust
 //! use mini_logger::Builder;
@@ -81,65 +71,61 @@
 //!
 //! # Re-exported API
 //!
-//! This crate re-exports its main components for convenience,
-//! so users do not need to access internal modules directly.
+//! The crate re-exports its primary types so applications typically do not
+//! need to access internal modules directly.
 //!
-//! ## Core types
+//! ## Core Types
 //!
 //! - [`Logger`]
 //! - [`Builder`]
 //! - [`RecMessage`]
+//! - [`RecMessageBuilder`]
 //!
 //! ## Filtering
 //!
 //! - [`Filter`]
 //! - [`FilterBuilder`]
-//! - [`FilterLevel`]
-//! - [`FilterEnv`]
-//! - [`FilterTarget`]
+//! - [`Level`]
 //!
 //! ## Formatting
 //!
-//! - [`Format`]
-//! - [`FormatBuilder`]
-//! - [`FormatConfig`]
-//! - [`FormatCustom`]
+//! - [`Formatter`]
+//! - [`FormatterBuilder`]
+//! - [`RenderRecord`]
 //!
-//! ## Output / Writer
+//! ## Output
 //!
 //! - [`Writer`]
+//! - [`WriterBuilder`]
 //! - [`Output`]
-//! - [`BufferWriter`]
-//! - [`BufferFormatter`]
 //! - [`Buffer`]
-//! - [`try_with_buf_formatter_slot`]
+//! - [`try_with_buffer_slot`]
 //!
 //! ## Styling
 //!
 //! - [`Color`]
 //! - [`ColorMode`]
+//! - [`TimeMode`]
+//! - [`TimePrecision`]
 //! - [`Timestamp`]
-//! - [`TimestampPrecision`]
 //!
 //! ## Macros
 //!
-//! Logging macros are included via `#[macro_use] mod macros`
-//! and are available automatically after importing the crate.
+//! Logging macros are exported by the crate and are available automatically
+//! after importing the crate.
 //!
-//! Macros provides a set of logging macros for ergonomic usage.
+//! ### Core Macro
 //!
-//! ### Main macro
-//!
-//! - [`log!`] → core logging macro supporting multiple forms:
+//! - [`log!`] — flexible logging macro supporting multiple forms:
 //!
 //! ```rust
 //! log!(info, "message");
-//! log!(target: "network", debug, "msg");
+//! log!(target: "network", debug, "message");
 //! ```
 //!
-//! ### Level convenience macros
+//! ### Level Convenience Macros
 //!
-//! These are shorthand wrappers around [`log!`]:
+//! These macros are shorthand wrappers around [`log!`]:
 //!
 //! - [`error!`]
 //! - [`warn!`]
@@ -152,10 +138,11 @@
 //! ```rust
 //! error!("something failed");
 //! warn!("warning message");
-//! info!("info message");
-//! debug!("debug message");
-//! trace!("trace message");
-//!..
+//! info!("information");
+//! debug!("debug details");
+//! trace!("trace details");
+//! ```
+//!...
 
 pub mod __private_helper;
 mod filter;
@@ -171,23 +158,21 @@ mod macros;
 pub use filter::Filter;
 pub use filter::FilterBuilder;
 pub use filter::Level;
-pub use format::DefaultFormat;
-// pub use format::Format;
-// pub use format::FormatConfig;
-// pub use format::FormatCustom;
+pub use format::Formatter;
+pub use format::FormatterBuilder;
+pub use format::RenderRecord;
 pub use logger::Builder;
 pub use logger::Logger;
 pub use logger::init;
-
 pub use record::RecMessage;
 pub use record::RecMessageBuilder;
 pub use style::Color;
 pub use style::ColorMode;
+pub use style::TimeMode;
+pub use style::TimePrecision;
 pub use style::Timestamp;
-pub use style::TimestampPrecision;
 pub use writer::Buffer;
-// pub use writer::BufferFormatter;
-// pub use writer::BufferWriter;
 pub use writer::Output;
 pub use writer::Writer;
-pub use writer::try_with_buf_formatter_slot;
+pub use writer::WriterBuilder;
+pub use writer::try_with_buffer_slot;

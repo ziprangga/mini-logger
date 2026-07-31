@@ -1,3 +1,4 @@
+use crate::writer::Output;
 /// ANSI terminal colors used by the built-in formatter.
 ///
 /// Each variant represents a standard ANSI color escape sequence used when
@@ -26,55 +27,58 @@ impl Color {
 
 /// Controls when ANSI color escape sequences are emitted.
 ///
-/// The selected mode is stored as part of [`crate::style::Style`] and is
-/// resolved during writer construction when [`ColorMode::Auto`] is used.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+/// When [`ColorMode::Auto`] is used, the final color behavior is determined
+/// from the configured output destination.
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ColorMode {
-    /// Automatically enable colors when output supports terminal rendering.
+    /// Automatically enable colors when the configured output supports terminal
+    /// rendering.
     ///
-    /// The final decision is resolved by [`crate::writer::WriterBuilder`]
-    /// during build, after the output destination is known.
+    /// The final decision is determined when the mode is resolved against an
+    /// output destination.
     #[default]
     Auto,
+
     /// Always emit ANSI color escape sequences.
     Always,
+
     /// Never emit ANSI color escape sequences.
     Never,
 }
 
 impl ColorMode {
-    /// Returns whether ANSI colors should currently be emitted.
+    /// Resolves the effective color mode for the specified output destination.
     ///
-    /// [`ColorMode::Auto`] checks terminal availability on standard output or
-    /// standard error.
-    fn is_enabled(self) -> bool {
+    /// When the mode is [`ColorMode::Auto`]:
+    ///
+    /// - terminal outputs resolve to [`ColorMode::Always`] when terminal support
+    ///   is detected,
+    /// - non-terminal outputs resolve to [`ColorMode::Never`].
+    ///
+    /// [`ColorMode::Always`] and [`ColorMode::Never`] are returned unchanged.
+    pub fn resolve(self, output: &Output) -> Self {
         use std::io::IsTerminal;
         match self {
-            Self::Always => true,
-            Self::Never => false,
-            Self::Auto => std::io::stdout().is_terminal() || std::io::stderr().is_terminal(),
-        }
-    }
+            Self::Auto => match output {
+                Output::Stdout => {
+                    if std::io::stdout().is_terminal() {
+                        Self::Always
+                    } else {
+                        Self::Never
+                    }
+                }
+                Output::Stderr => {
+                    if std::io::stderr().is_terminal() {
+                        Self::Always
+                    } else {
+                        Self::Never
+                    }
+                }
+                Output::File(_) => Self::Never,
+            },
 
-    /// Returns the ANSI escape sequence for the color.
-    ///
-    /// Returns an empty string when colors are disabled.
-    pub fn color(self, color: Color) -> &'static str {
-        if self.is_enabled() {
-            color.as_str()
-        } else {
-            ""
-        }
-    }
-
-    /// Returns the ANSI reset escape sequence.
-    ///
-    /// Returns an empty string when colors are disabled.
-    pub fn reset(self) -> &'static str {
-        if self.is_enabled() {
-            Color::Reset.as_str()
-        } else {
-            ""
+            Self::Always => Self::Always,
+            Self::Never => Self::Never,
         }
     }
 }
@@ -82,12 +86,23 @@ impl ColorMode {
 impl std::str::FromStr for ColorMode {
     type Err = ();
 
+    /// Parses a color mode from a string.
+    ///
+    /// Accepted values are:
+    ///
+    /// - `"auto"`
+    /// - `"always"`
+    /// - `"never"`
+    ///
+    /// Parsing is case-insensitive.
+    ///
+    /// Returns an error if the value is not recognized.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "auto" => Ok(ColorMode::Auto),
             "always" => Ok(ColorMode::Always),
             "never" => Ok(ColorMode::Never),
-            _ => Ok(ColorMode::default()),
+            _ => Err(()),
         }
     }
 }

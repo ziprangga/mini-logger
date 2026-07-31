@@ -1,14 +1,14 @@
 /// Destination where completed log buffers are written.
 ///
-/// [`Output`] defines the final target used by [`Writer`] when flushing
+/// [`Output`] defines the final destination used by [`Writer`] when writing
 /// formatted log records.
 ///
 /// Supported destinations:
 ///
-/// - [`Output::Stdout`] writes to standard output.
-/// - [`Output::Stderr`] writes to standard error.
-/// - [`Output::File`] appends records to a configured file path.
-#[derive(Default, Clone)]
+/// - [`Output::Stdout`] writes records to standard output.
+/// - [`Output::Stderr`] writes records to standard error.
+/// - [`Output::File`] appends records to a configured file.
+#[derive(Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Output {
     /// Write log records to standard output.
     #[default]

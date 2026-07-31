@@ -6,7 +6,7 @@
 //! The available components are:
 //!
 //! - [`TimeMode`] controls whether timestamps are disabled, local time, or UTC.
-//! - [`TimestampPrecision`] controls the fractional time precision.
+//! - [`TimePrecision`] controls the fractional time precision.
 //! - [`Timestamp`] stores a captured system time together with its formatting
 //!   configuration.
 //!..
@@ -32,52 +32,26 @@ pub enum TimeMode {
     Utc,
 }
 
-impl TimeMode {
-    /// Returns whether timestamps are enabled.
-    pub fn is_enabled(self) -> bool {
-        match self {
-            Self::Off => false,
-            Self::Local | Self::Utc => true,
-        }
-    }
-
-    /// Creates a timestamp using the current system time.
-    ///
-    /// Returns a disabled timestamp when [`TimeMode::Off`] is selected.
-    pub fn timestamp(self, precision: TimestampPrecision) -> Timestamp {
-        if !self.is_enabled() {
-            return self.reset();
-        }
-
-        Timestamp {
-            mode: self,
-            time: SystemTime::now(),
-            precision,
-        }
-    }
-
-    /// Creates a default UTC timestamp.
-    ///
-    /// This is used when timestamp output is disabled and provides a neutral
-    /// timestamp value for internal handling.
-    pub fn reset(self) -> Timestamp {
-        Timestamp {
-            mode: TimeMode::Utc,
-            time: SystemTime::now(),
-            precision: TimestampPrecision::Seconds,
-        }
-    }
-}
-
 impl std::str::FromStr for TimeMode {
     type Err = ();
 
+    /// Parses a time mode from a string.
+    ///
+    /// Accepted values are:
+    ///
+    /// - `"off"`
+    /// - `"local"`
+    /// - `"utc"`
+    ///
+    /// Parsing is case-insensitive.
+    ///
+    /// Returns an error if the value is not recognized.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "off" => Ok(TimeMode::Off),
             "local" => Ok(TimeMode::Local),
             "utc" => Ok(TimeMode::Utc),
-            _ => Ok(TimeMode::default()),
+            _ => Err(()),
         }
     }
 }
@@ -86,7 +60,7 @@ impl std::str::FromStr for TimeMode {
 ///
 /// Controls the number of fractional seconds included in formatted output.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum TimestampPrecision {
+pub enum TimePrecision {
     /// Whole seconds.
     Seconds,
     /// Millisecond precision.
@@ -97,21 +71,33 @@ pub enum TimestampPrecision {
     Nanos,
 }
 
-impl std::str::FromStr for TimestampPrecision {
+impl std::str::FromStr for TimePrecision {
     type Err = ();
 
+    /// Parses a timestamp precision from a string.
+    ///
+    /// Accepted values are:
+    ///
+    /// - `"seconds"`
+    /// - `"millis"`
+    /// - `"micros"`
+    /// - `"nanos"`
+    ///
+    /// Parsing is case-insensitive.
+    ///
+    /// Unknown values resolve to [`TimePrecision::Seconds`].
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "seconds" => Ok(TimestampPrecision::Seconds),
-            "millis" => Ok(TimestampPrecision::Millis),
-            "micros" => Ok(TimestampPrecision::Micros),
-            "nanos" => Ok(TimestampPrecision::Nanos),
-            _ => Ok(TimestampPrecision::Seconds),
+            "seconds" => Ok(TimePrecision::Seconds),
+            "millis" => Ok(TimePrecision::Millis),
+            "micros" => Ok(TimePrecision::Micros),
+            "nanos" => Ok(TimePrecision::Nanos),
+            _ => Ok(TimePrecision::Seconds),
         }
     }
 }
 
-impl Default for TimestampPrecision {
+impl Default for TimePrecision {
     fn default() -> Self {
         Self::Seconds
     }
@@ -123,59 +109,63 @@ impl Default for TimestampPrecision {
 ///
 /// - the selected [`TimeMode`],
 /// - the captured [`SystemTime`],
-/// - the requested [`TimestampPrecision`].
+/// - the requested [`TimePrecision`].
 ///
 /// Formatting is performed when the timestamp is displayed.
 #[derive(Copy, Clone)]
 pub struct Timestamp {
     mode: TimeMode,
     time: SystemTime,
-    precision: TimestampPrecision,
+    precision: TimePrecision,
 }
 
 impl Timestamp {
-    /// Converts the timestamp into a Local datetime.
+    /// Captures the current system time using the specified mode and precision.
+    pub fn now(mode: TimeMode, precision: TimePrecision) -> Self {
+        Self {
+            mode,
+            time: SystemTime::now(),
+            precision,
+        }
+    }
+
+    /// Converts the timestamp into a [`chrono::Local`] datetime.
     fn datetime_local(&self) -> chrono::DateTime<chrono::Local> {
         chrono::DateTime::<chrono::Local>::from(self.time)
     }
 
-    /// Converts the timestamp into a UTC datetime.
+    /// Converts the timestamp into a [`Utc`] datetime.
     fn datetime_utc(&self) -> chrono::DateTime<Utc> {
         DateTime::<Utc>::from(self.time)
     }
 }
 
 impl Default for Timestamp {
-    /// Creates a UTC timestamp using the current system time and second
-    /// precision.
     fn default() -> Self {
         Self {
             mode: TimeMode::Utc,
             time: SystemTime::now(),
-            precision: TimestampPrecision::Seconds,
+            precision: TimePrecision::Seconds,
         }
     }
 }
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.mode == TimeMode::Off {
-            return Ok(());
-        }
-
         match self.mode {
+            TimeMode::Off => Ok(()),
             TimeMode::Local => {
                 let dt = self.datetime_local();
 
                 match self.precision {
-                    TimestampPrecision::Seconds => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
-                    TimestampPrecision::Millis => {
+                    TimePrecision::Seconds => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
+                    TimePrecision::Millis => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.3f"))
                     }
-                    TimestampPrecision::Micros => {
+                    TimePrecision::Micros => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.6f"))
                     }
-                    TimestampPrecision::Nanos => {
+                    TimePrecision::Nanos => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.9f"))
                     }
                 }
@@ -185,20 +175,18 @@ impl fmt::Display for Timestamp {
                 let dt = self.datetime_utc();
 
                 match self.precision {
-                    TimestampPrecision::Seconds => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
-                    TimestampPrecision::Millis => {
+                    TimePrecision::Seconds => write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S")),
+                    TimePrecision::Millis => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.3f"))
                     }
-                    TimestampPrecision::Micros => {
+                    TimePrecision::Micros => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.6f"))
                     }
-                    TimestampPrecision::Nanos => {
+                    TimePrecision::Nanos => {
                         write!(f, "{}", dt.format("%Y-%m-%d %H:%M:%S%.9f"))
                     }
                 }
             }
-
-            TimeMode::Off => Ok(()),
         }
     }
 }
