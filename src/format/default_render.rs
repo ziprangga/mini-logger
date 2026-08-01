@@ -6,8 +6,6 @@ use crate::format::{Formatter, RenderRecord};
 use crate::record::RecMessage;
 use crate::style::Color;
 use crate::style::ColorMode;
-use crate::style::TimeMode;
-use crate::style::Timestamp;
 use crate::writer::Buffer;
 
 /// Built-in renderer for formatted log records.
@@ -135,11 +133,7 @@ impl FormatLayoutWriter<'_> {
     fn write_timestamp(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
         let style = self.formatter.style();
 
-        if style.time_mode() == TimeMode::Off {
-            return Ok(());
-        }
-
-        let timestamp = Timestamp::now(style.time_mode(), style.time_precision());
+        let timestamp = style.time_mode().resolve(style.time_precision());
 
         self.write_header_value(record_msg, timestamp)
     }
