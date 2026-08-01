@@ -19,7 +19,7 @@
 //!
 //! A log record goes through the following pipeline:
 //!
-//! 1. A [`RecMessage`] is created by the logging macro or user code.
+//! 1. A [`RecordMsg`] is created by the logging macro or user code.
 //! 2. The message is passed to [`Logger::rec_msg`].
 //! 3. The filter system evaluates whether the record is allowed.
 //! 4. If accepted, the record is formatted into a thread-local buffer.
@@ -99,7 +99,7 @@
 
 use crate::filter::{Filter, FilterBuilder, Level};
 use crate::format::{Formatter, FormatterBuilder, RenderRecord};
-use crate::record::RecMessage;
+use crate::record::RecordMsg;
 use crate::style::{ColorMode, TimeMode, TimePrecision};
 use crate::writer::{Buffer, Writer, WriterBuilder, try_with_buffer_slot};
 
@@ -340,7 +340,7 @@ impl Logger {
     }
 
     /// Checks whether a log record passes filtering.
-    pub fn matches(&self, record_msg: &RecMessage<'_>) -> bool {
+    pub fn matches(&self, record_msg: &RecordMsg<'_>) -> bool {
         self.filter.matches(record_msg)
     }
 
@@ -348,7 +348,7 @@ impl Logger {
     ///
     /// This performs:
     /// filtering → formatting → writing → buffer clearing
-    pub fn rec_msg(&self, record_msg: &RecMessage<'_>) {
+    pub fn record(&self, record_msg: &RecordMsg<'_>) {
         #[cfg(feature = "runtime-control")]
         if !self.is_active() {
             return;
@@ -410,7 +410,7 @@ fn trigger_panic() {
 
             let msg = format_args!("panic: {}", info);
 
-            let mut builder = RecMessage::builder();
+            let mut builder = RecordMsg::builder();
 
             builder
                 .level(Level::Debug)

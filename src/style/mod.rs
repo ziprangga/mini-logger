@@ -8,8 +8,9 @@
 //! - [`Color`] and [`ColorMode`] control ANSI color rendering.
 //! - [`TimeMode`], [`Timestamp`], and [`TimePrecision`] control timestamp
 //!   generation and formatting.
-//! - [`Style`] groups output appearance settings used during record
+//! - [`Style`] stores resolved formatting settings used during record
 //!   formatting.
+//! - [`StyleBuilder`] configures style options before building a [`Style`].
 //!..
 
 mod color;
@@ -17,6 +18,8 @@ mod time;
 
 pub use color::{Color, ColorMode};
 pub use time::{TimeMode, TimePrecision, Timestamp};
+
+use crate::writer::Output;
 
 /// Formatting style configuration.
 ///
@@ -33,13 +36,9 @@ pub struct Style {
 }
 
 impl Style {
-    /// Creates a style configuration with custom color and time modes.
-    pub fn new(cm: ColorMode, tm: TimeMode, p: TimePrecision) -> Self {
-        Self {
-            color_mode: cm,
-            time_mode: tm,
-            time_precision: p,
-        }
+    /// Creates a [`StyleBuilder`] with default configuration values.
+    pub fn builder() -> StyleBuilder {
+        StyleBuilder::new()
     }
 
     /// Returns the configured color mode.
@@ -52,24 +51,56 @@ impl Style {
         self.time_mode
     }
 
+    /// Returns the configured timestamp precision.
     pub fn time_precision(&self) -> TimePrecision {
         self.time_precision
     }
+}
+
+/// Builder for constructing a [`Style`] configuration.
+///
+/// [`StyleBuilder`] allows configuring output styling options before creating
+/// an immutable [`Style`] instance.
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct StyleBuilder {
+    color_mode: ColorMode,
+    time_mode: TimeMode,
+    time_precision: TimePrecision,
+}
+
+impl StyleBuilder {
+    /// Creates a [`StyleBuilder`] with default configuration values.
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Sets the color mode.
-    pub fn set_color_mode(&mut self, cm: ColorMode) -> &mut Self {
+    pub fn color_mode(&mut self, cm: ColorMode) -> &mut Self {
         self.color_mode = cm;
         self
     }
 
     /// Sets the time mode.
-    pub fn set_time_mode(&mut self, tm: TimeMode) -> &mut Self {
+    pub fn time_mode(&mut self, tm: TimeMode) -> &mut Self {
         self.time_mode = tm;
         self
     }
 
-    pub fn set_time_precision(&mut self, tp: TimePrecision) -> &mut Self {
+    /// Sets the timestamp precision.
+    pub fn time_precision(&mut self, tp: TimePrecision) -> &mut Self {
         self.time_precision = tp;
         self
+    }
+
+    /// Builds the final [`Style`] configuration.
+    ///
+    /// Resolves automatic color selection using the provided output destination
+    /// before creating the immutable style configuration.
+    pub fn build(self, output: &Output) -> Style {
+        Style {
+            color_mode: self.color_mode.resolve(output),
+            time_mode: self.time_mode,
+            time_precision: self.time_precision,
+        }
     }
 }

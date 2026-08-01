@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use crate::filter::Level;
 use crate::format::{Formatter, RenderRecord};
-use crate::record::RecMessage;
+use crate::record::RecordMsg;
 use crate::style::Color;
 use crate::style::ColorMode;
 use crate::writer::Buffer;
@@ -29,7 +29,7 @@ impl RenderRecord for DefaultRenderer {
         &self,
         formatter: &Formatter,
         buffer: &mut Buffer,
-        record_msg: &RecMessage<'_>,
+        record_msg: &RecordMsg<'_>,
     ) -> io::Result<()> {
         let fmt = FormatLayoutWriter {
             formatter,
@@ -55,7 +55,7 @@ struct FormatLayoutWriter<'a> {
 impl FormatLayoutWriter<'_> {
     /// Writes the complete formatted log record.
     #[inline]
-    pub fn write(mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
+    pub fn write(mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
         self.write_timestamp(record_msg)?;
         self.write_level(record_msg)?;
         self.write_target(record_msg)?;
@@ -74,7 +74,7 @@ impl FormatLayoutWriter<'_> {
     }
 
     /// Returns the color associated with the record severity level.
-    fn level_color(record_msg: &RecMessage<'_>) -> crate::style::Color {
+    fn level_color(record_msg: &RecordMsg<'_>) -> crate::style::Color {
         match record_msg.level() {
             Level::Off => Color::Reset,
             Level::Error => Color::Red,
@@ -89,7 +89,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// The first header field starts the header with `[`, while subsequent
     /// fields are separated by spaces.
-    fn write_header_value<T>(&mut self, record_msg: &RecMessage<'_>, value: T) -> io::Result<()>
+    fn write_header_value<T>(&mut self, record_msg: &RecordMsg<'_>, value: T) -> io::Result<()>
     where
         T: Display,
     {
@@ -130,7 +130,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// Timestamp generation and formatting behavior are taken from the
     /// formatter style configuration.
-    fn write_timestamp(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
+    fn write_timestamp(&mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
         let style = self.formatter.style();
 
         let timestamp = style.time_mode().resolve(style.time_precision());
@@ -142,7 +142,7 @@ impl FormatLayoutWriter<'_> {
     ///
     /// The level text is colorized according to the active color mode and
     /// record severity level.
-    fn write_level(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
+    fn write_level(&mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
         if !self.formatter.level {
             return Ok(());
         }
@@ -154,7 +154,7 @@ impl FormatLayoutWriter<'_> {
     /// Writes the log target header field if enabled.
     ///
     /// Empty targets are ignored.
-    fn write_target(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
+    fn write_target(&mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
         if !self.formatter.target {
             return Ok(());
         }
@@ -170,7 +170,7 @@ impl FormatLayoutWriter<'_> {
     /// Writes the module path header field if enabled.
     ///
     /// Records without a module path do not add a header field.
-    fn write_module(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
+    fn write_module(&mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
         if !self.formatter.module_path {
             return Ok(());
         }
@@ -206,7 +206,7 @@ impl FormatLayoutWriter<'_> {
     }
 
     /// Writes the log message followed by a newline.
-    fn write_args(&mut self, record_msg: &RecMessage<'_>) -> io::Result<()> {
-        write!(self.buffer, "{}\n", record_msg.msg())
+    fn write_args(&mut self, record_msg: &RecordMsg<'_>) -> io::Result<()> {
+        write!(self.buffer, "{}\n", record_msg.message())
     }
 }

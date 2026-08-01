@@ -6,7 +6,7 @@
 mod __private {
     use crate::Level;
     use crate::Logger;
-    use crate::RecMessage;
+    use crate::RecordMsg;
 
     // This helper isolates the heavy builder logic into a standalone,
     // non-generic function. Because macros expand code linearly at every
@@ -20,15 +20,15 @@ mod __private {
         module: &'static str,
         msg: std::fmt::Arguments,
     ) {
-        let mut builder = RecMessage::builder();
+        let mut builder = RecordMsg::builder();
 
         builder
             .level(level)
             .target(target)
             .module(Some(module))
-            .msg(msg);
+            .message(msg);
 
-        logger.rec_msg(&builder.build());
+        logger.record(&builder.build());
     }
 
     // This is the public gatekeeper for internal macro expansion.

@@ -17,13 +17,16 @@ static LEVEL: AtomicUsize = AtomicUsize::new(Level::Off as usize);
 
 /// Log verbosity level used to determine whether log records are enabled.
 #[repr(usize)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub enum Level {
     Off = 0,
     Error = 1,
     Warn = 2,
     Info = 3,
+
+    #[default]
     Debug = 4,
+
     Trace = 5,
 }
 
@@ -92,11 +95,5 @@ impl std::str::FromStr for Level {
             "trace" => Ok(Level::Trace),
             _ => Err(()),
         }
-    }
-}
-
-impl Default for Level {
-    fn default() -> Self {
-        Level::Debug
     }
 }

@@ -47,7 +47,7 @@ mod level;
 
 pub use level::Level;
 
-use crate::record::RecMessage;
+use crate::record::RecordMsg;
 
 /// A filter directive consisting of an optional target prefix
 /// and an associated maximum enabled log level.
@@ -112,6 +112,7 @@ pub struct Filter {
 }
 
 impl Filter {
+    /// Creates a new [`FilterBuilder`].
     pub fn builder() -> FilterBuilder {
         FilterBuilder::new()
     }
@@ -126,12 +127,12 @@ impl Filter {
     }
 
     /// Returns `true` if the log record passes both level and message filtering.
-    pub fn matches(&self, record_msg: &RecMessage<'_>) -> bool {
+    pub fn matches(&self, record_msg: &RecordMsg<'_>) -> bool {
         if !self.enabled(record_msg.target(), &record_msg.level()) {
             return false;
         }
 
-        if !self.is_match(&record_msg.msg().to_string()) {
+        if !self.is_match(&record_msg.message().to_string()) {
             return false;
         }
         true
@@ -174,20 +175,34 @@ impl Filter {
 /// Duplicate targets replace earlier definitions. Before building, target
 /// directives are sorted from shorter prefixes to longer prefixes so that
 /// more specific targets override broader target prefixes during matching.
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FilterBuilder {
-    filter: Filter,
+    targets: Vec<Target>,
+    message: Option<String>,
 }
 
 impl FilterBuilder {
     /// Creates a new filter builder with the default configuration.
     pub fn new() -> Self {
-        Self {
-            filter: Filter::default(),
+        Self::default()
+    }
+
+    /// Inserts a filter directive.
+    ///
+    /// If another directive exists for the same target, it is replaced.
+    /// This guarantees that each target appears at most once before
+    /// the filter is built.
+    fn insert_filter(&mut self, mut tgt: Target) {
+        if let Some(pos) = self.targets.iter().position(|d| d.target() == tgt.target()) {
+            std::mem::swap(&mut self.targets[pos], &mut tgt);
+        } else {
+            self.targets.push(tgt);
         }
     }
 
     /// Adds or replaces a target-specific filter directive.
+    ///
+    /// A `None` target configures the global filter level.
     pub fn filter_target(&mut self, tgt: Option<&str>, lvl: Level) -> &mut Self {
         self.insert_filter(Target::new(tgt.map(|s| s.to_owned()), lvl));
         self
@@ -195,7 +210,7 @@ impl FilterBuilder {
 
     /// Restricts output to log messages containing the given substring.
     pub fn filter_message(&mut self, s: impl Into<String>) -> &mut Self {
-        self.filter.message = Some(s.into());
+        self.message = Some(s.into());
         self
     }
 
@@ -230,48 +245,23 @@ impl FilterBuilder {
     /// Target directives are sorted by target length (shortest first).
     /// This allows longer and more specific target prefixes to override
     /// broader matches during filtering.
-    pub fn build(mut self) -> Filter {
-        let mut in_targets = Vec::new();
+    pub fn build(self) -> Filter {
+        let mut targets = self.targets;
 
-        if self.filter.targets.is_empty() {
-            in_targets.push(Target::new(None, Level::Debug));
+        if targets.is_empty() {
+            targets.push(Target::new(None, Level::Debug));
         } else {
-            in_targets = std::mem::take(&mut self.filter.targets);
-            in_targets.sort_by(|a, b| {
-                let alen = a.target().as_ref().map(|a| a.len()).unwrap_or(0);
-                let blen = b.target().as_ref().map(|b| b.len()).unwrap_or(0);
+            targets.sort_by(|a, b| {
+                let alen = a.target().map(|a| a.len()).unwrap_or(0);
+                let blen = b.target().map(|b| b.len()).unwrap_or(0);
                 alen.cmp(&blen)
             });
         }
 
         Filter {
-            targets: std::mem::take(&mut in_targets),
-            message: std::mem::take(&mut self.filter.message),
+            targets,
+            message: self.message,
         }
-    }
-
-    /// Inserts a filter directive.
-    ///
-    /// If another directive exists for the same target, it is replaced.
-    /// This guarantees that each target appears at most once before
-    /// the filter is built.
-    fn insert_filter(&mut self, mut tgt: Target) {
-        if let Some(pos) = self
-            .filter
-            .targets
-            .iter()
-            .position(|d| d.target() == tgt.target())
-        {
-            std::mem::swap(&mut self.filter.targets[pos], &mut tgt);
-        } else {
-            self.filter.targets.push(tgt);
-        }
-    }
-}
-
-impl Default for FilterBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

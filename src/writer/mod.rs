@@ -101,37 +101,37 @@ impl Writer {
 /// The final writer state is produced by [`WriterBuilder::build`].
 #[derive(Debug, Default)]
 pub struct WriterBuilder {
-    writer: Writer,
+    output: Output,
 }
 
 impl WriterBuilder {
     /// Creates a new builder with default configuration.
     pub fn new() -> Self {
-        Self {
-            writer: Writer::default(),
-        }
+        Self::default()
     }
 
     /// Configures the writer to write to standard output.
     pub fn stdout(&mut self) -> &mut Self {
-        self.writer.output = Output::Stdout;
+        self.output = Output::Stdout;
         self
     }
 
     /// Configures the writer to write to standard error.
     pub fn stderr(&mut self) -> &mut Self {
-        self.writer.output = Output::Stderr;
+        self.output = Output::Stderr;
         self
     }
 
     /// Configures the writer to append records to the specified file.
     pub fn file(&mut self, path: impl Into<String>) -> &mut Self {
-        self.writer.output = Output::File(path.into());
+        self.output = Output::File(path.into());
         self
     }
 
     /// Builds the configured writer.
     pub fn build(self) -> Writer {
-        self.writer
+        Writer {
+            output: self.output,
+        }
     }
 }

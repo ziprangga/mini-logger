@@ -1,3 +1,3 @@
-mod rec_message;
+mod message;
 
-pub use rec_message::{RecMessage, RecMessageBuilder};
+pub use message::{RecordMsg, RecordMsgBuilder};

@@ -18,8 +18,8 @@
 
 mod default_render;
 
-use crate::record::RecMessage;
-use crate::style::{ColorMode, Style, TimeMode, TimePrecision};
+use crate::record::RecordMsg;
+use crate::style::{ColorMode, Style, StyleBuilder, TimeMode, TimePrecision};
 use crate::writer::Buffer;
 use crate::writer::Output;
 
@@ -32,19 +32,19 @@ pub trait RenderRecord {
         &self,
         formatter: &Formatter,
         buffer: &mut Buffer,
-        record: &RecMessage<'_>,
+        record: &RecordMsg<'_>,
     ) -> std::io::Result<()>;
 }
 
 impl<F> RenderRecord for F
 where
-    F: Fn(&Formatter, &mut Buffer, &RecMessage<'_>) -> std::io::Result<()> + Send + Sync,
+    F: Fn(&Formatter, &mut Buffer, &RecordMsg<'_>) -> std::io::Result<()> + Send + Sync,
 {
     fn render(
         &self,
         formatter: &Formatter,
         buffer: &mut Buffer,
-        record: &RecMessage<'_>,
+        record: &RecordMsg<'_>,
     ) -> std::io::Result<()> {
         (self)(formatter, buffer, record)
     }
@@ -100,7 +100,7 @@ impl Formatter {
     pub fn render_record(
         &self,
         buffer: &mut Buffer,
-        record: &RecMessage<'_>,
+        record: &RecordMsg<'_>,
     ) -> std::io::Result<()> {
         match &self.renderer {
             Some(renderer) => renderer.render(self, buffer, record),
@@ -122,51 +122,59 @@ impl Default for Formatter {
 }
 
 /// Builder for constructing a [`Formatter`].
+///
+/// Style configuration is delegated to [`StyleBuilder`].
+/// The style is finalized when [`FormatterBuilder::build`] is called.
 pub struct FormatterBuilder {
-    formatter: Formatter,
+    style: StyleBuilder,
+    level: bool,
+    target: bool,
+    module_path: bool,
+    renderer: Option<Box<dyn RenderRecord + Send + Sync>>,
 }
 
 impl FormatterBuilder {
     /// Creates a builder with default formatting configuration.
     pub fn new() -> Self {
-        Self {
-            formatter: Formatter::default(),
-        }
+        Self::default()
     }
 
     /// Enables or disables writing the log level.
     pub fn level(&mut self, write: bool) -> &mut Self {
-        self.formatter.level = write;
+        self.level = write;
         self
     }
 
     /// Enables or disables writing the log target.
     pub fn target(&mut self, write: bool) -> &mut Self {
-        self.formatter.target = write;
+        self.target = write;
         self
     }
 
     /// Enables or disables writing the module path.
     pub fn module_path(&mut self, write: bool) -> &mut Self {
-        self.formatter.module_path = write;
+        self.module_path = write;
         self
     }
 
     /// Sets the color mode.
+    ///
+    /// [`ColorMode::Auto`] is resolved when [`FormatterBuilder::build`] is called
+    /// using the configured [`Output`] destination.
     pub fn color_mode(&mut self, color_mode: ColorMode) -> &mut Self {
-        self.formatter.style.set_color_mode(color_mode);
+        self.style.color_mode(color_mode);
         self
     }
 
     /// Sets the timestamp mode.
     pub fn time_mode(&mut self, time_mode: TimeMode) -> &mut Self {
-        self.formatter.style.set_time_mode(time_mode);
+        self.style.time_mode(time_mode);
         self
     }
 
     /// Sets the timestamp precision.
     pub fn time_precision(&mut self, time_precision: TimePrecision) -> &mut Self {
-        self.formatter.style.set_time_precision(time_precision);
+        self.style.time_precision(time_precision);
         self
     }
 
@@ -177,27 +185,34 @@ impl FormatterBuilder {
     where
         F: RenderRecord + Send + Sync + 'static,
     {
-        self.formatter.renderer = Some(Box::new(format));
+        self.renderer = Some(Box::new(format));
         self
     }
 
     /// Builds the configured formatter.
     ///
+    /// The internal [`StyleBuilder`] is converted into a [`Style`].
     /// Automatic color mode resolution is performed against the specified output
     /// destination before the formatter is returned.
     pub fn build(self, output: &Output) -> Formatter {
-        let mut format = self.formatter;
-
-        let color_choice = format.style().color_mode().resolve(output);
-
-        format.style.set_color_mode(color_choice);
-
-        format
+        Formatter {
+            style: self.style.build(output),
+            level: self.level,
+            target: self.target,
+            module_path: self.module_path,
+            renderer: self.renderer,
+        }
     }
 }
 
 impl Default for FormatterBuilder {
     fn default() -> Self {
-        Self::new()
+        Self {
+            style: StyleBuilder::default(),
+            level: true,
+            target: false,
+            module_path: true,
+            renderer: None,
+        }
     }
 }
